@@ -49,12 +49,17 @@ export function PassportScreen({ route, navigation }: Props) {
   const focusActivityId = route?.params?.focusActivityId;
   const pendingFocusRef = useRef<string | null>(null);
   const pendingScrollTopRef = useRef(false);
+  // Se incrementa cada vez que hay un scroll pendiente, para que el efecto de abajo
+  // se dispare aunque `visibleActivities` no cambie de referencia (p. ej. el filtro
+  // ya estaba en "Todas", así que resetearlo no genera un nuevo array memoizado).
+  const [scrollAttempt, setScrollAttempt] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
       if (!focusActivityId) return;
       pendingFocusRef.current = focusActivityId;
       setCategoryFilter(ALL_CATEGORIES);
+      setScrollAttempt((n) => n + 1);
       navigation?.setParams({ focusActivityId: undefined });
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [focusActivityId])
@@ -72,7 +77,7 @@ export function PassportScreen({ route, navigation }: Props) {
       bookRef.current?.scrollToIndex(index);
       pendingFocusRef.current = null;
     }
-  }, [visibleActivities]);
+  }, [visibleActivities, scrollAttempt]);
 
   function openNewActivityForm() {
     setEditingActivity(null);

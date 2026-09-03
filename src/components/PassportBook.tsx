@@ -46,7 +46,14 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
 
   const goToIndex = useCallback((index: number) => {
     const clamped = Math.max(0, Math.min(index, activities.length - 1));
-    flipperRef.current?.goToPage(clamped);
+    // react-native-page-flipper confirma su lista interna de páginas de forma
+    // asíncrona (vía setState) después de inicializarse o de recibir nuevas
+    // activities. Si pedimos goToPage() antes de que ese estado se confirme,
+    // la librería todavía ve su lista de páginas vacía y descarta el salto
+    // ("invalid page"). Este pequeño margen le da tiempo a confirmarse.
+    setTimeout(() => {
+      flipperRef.current?.goToPage(clamped);
+    }, 50);
     setCurrentIndex(clamped);
   }, [activities.length]);
 

@@ -176,7 +176,10 @@ const styles = StyleSheet.create({
   },
   photo: {
     width: '100%',
-    height: 170,
+    // Coincide con el aspect={4/3} del recorte en StampModal, para que el
+    // encuadre que el usuario eligió al recortar sea exactamente el que se
+    // ve en el sello (sin un recorte extra por un aspect ratio distinto).
+    aspectRatio: 4 / 3,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.cardBorder,

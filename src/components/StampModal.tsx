@@ -196,7 +196,10 @@ const styles = StyleSheet.create({
   },
   photo: {
     width: '100%',
-    height: 150,
+    // Mismo aspect ratio que el recorte (aspect={4/3} más abajo) y que el
+    // sello final en PassportPage, para que el encuadre se vea igual en
+    // todo el flujo.
+    aspectRatio: 4 / 3,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.cardBorder,
