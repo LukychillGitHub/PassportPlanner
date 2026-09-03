@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
+  Image,
   Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -9,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Activity, Stamp } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { StarRating } from './StarRating';
@@ -18,24 +22,43 @@ type Props = {
   activity: Activity | null;
   existingStamp?: Stamp;
   onClose: () => void;
-  onConfirm: (rating: number, note: string) => void;
+  onConfirm: (rating: number, note: string, photoUri: string | null) => void;
   onRemoveStamp?: () => void;
 };
 
 export function StampModal({ visible, activity, existingStamp, onClose, onConfirm, onRemoveStamp }: Props) {
   const [rating, setRating] = useState(existingStamp?.rating ?? 0);
   const [note, setNote] = useState(existingStamp?.note ?? '');
+  const [photoUri, setPhotoUri] = useState<string | null>(existingStamp?.photoUri ?? null);
 
   useEffect(() => {
     if (visible) {
       setRating(existingStamp?.rating ?? 0);
       setNote(existingStamp?.note ?? '');
+      setPhotoUri(existingStamp?.photoUri ?? null);
     }
   }, [visible, existingStamp]);
 
   if (!activity) return null;
 
   const canConfirm = rating > 0;
+
+  async function pickPhoto() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permiso necesario', 'Necesitamos acceso a tus fotos para agregar una imagen de la actividad.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  }
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
@@ -44,44 +67,66 @@ export function StampModal({ visible, activity, existingStamp, onClose, onConfir
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.card}>
-          <Text style={styles.stampIcon}>🏵️</Text>
-          <Text style={styles.title}>{activity.title}</Text>
-          <Text style={styles.subtitle}>¿Cómo estuvo la experiencia?</Text>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.stampIcon}>🏵️</Text>
+            <Text style={styles.title}>{activity.title}</Text>
+            <Text style={styles.subtitle}>¿Cómo estuvo la experiencia?</Text>
 
-          <View style={styles.starsWrap}>
-            <StarRating rating={rating} onChange={setRating} size={34} />
-          </View>
-
-          <TextInput
-            style={styles.input}
-            placeholder="Contanos brevemente cómo te fue..."
-            placeholderTextColor={colors.inkMuted}
-            value={note}
-            onChangeText={setNote}
-            multiline
-            numberOfLines={3}
-          />
-
-          <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.secondaryButton} onPress={onClose}>
-              <Text style={styles.secondaryButtonText}>Cancelar</Text>
+            <TouchableOpacity style={styles.photoPicker} onPress={pickPhoto}>
+              {photoUri ? (
+                <Image source={{ uri: photoUri }} style={styles.photo} />
+              ) : (
+                <View style={[styles.photo, styles.photoPlaceholder]}>
+                  <Text style={styles.photoPlaceholderIcon}>📷</Text>
+                  <Text style={styles.photoPlaceholderText}>Agregar foto</Text>
+                </View>
+              )}
+              {!!photoUri && (
+                <View style={styles.photoEditBadge}>
+                  <Text style={styles.photoEditBadgeText}>Cambiar</Text>
+                </View>
+              )}
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.primaryButton, !canConfirm && styles.disabledButton]}
-              disabled={!canConfirm}
-              onPress={() => onConfirm(rating, note.trim())}
-            >
-              <Text style={styles.primaryButtonText}>
-                {existingStamp ? 'Actualizar sello' : 'Sellar pasaporte'}
-              </Text>
-            </TouchableOpacity>
-          </View>
 
-          {existingStamp && onRemoveStamp && (
-            <TouchableOpacity onPress={onRemoveStamp} style={styles.removeButton}>
-              <Text style={styles.removeButtonText}>Quitar sello</Text>
-            </TouchableOpacity>
-          )}
+            <View style={styles.starsWrap}>
+              <StarRating rating={rating} onChange={setRating} size={34} />
+            </View>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Contanos brevemente cómo te fue..."
+              placeholderTextColor={colors.inkMuted}
+              value={note}
+              onChangeText={setNote}
+              multiline
+              numberOfLines={3}
+            />
+
+            <View style={styles.buttonRow}>
+              <TouchableOpacity style={styles.secondaryButton} onPress={onClose}>
+                <Text style={styles.secondaryButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.primaryButton, !canConfirm && styles.disabledButton]}
+                disabled={!canConfirm}
+                onPress={() => onConfirm(rating, note.trim(), photoUri)}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {existingStamp ? 'Actualizar sello' : 'Sellar pasaporte'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {existingStamp && onRemoveStamp && (
+              <TouchableOpacity onPress={onRemoveStamp} style={styles.removeButton}>
+                <Text style={styles.removeButtonText}>Quitar sello</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -99,10 +144,13 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 420,
+    maxHeight: '88%',
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     borderWidth: 2,
     borderColor: colors.cardBorder,
+  },
+  scrollContent: {
     padding: spacing.lg,
     alignItems: 'center',
   },
@@ -122,6 +170,46 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     marginBottom: spacing.md,
     textAlign: 'center',
+  },
+  photoPicker: {
+    width: '100%',
+    marginBottom: spacing.md,
+  },
+  photo: {
+    width: '100%',
+    height: 150,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: colors.cardBorder,
+  },
+  photoPlaceholder: {
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderStyle: 'dashed',
+  },
+  photoPlaceholderIcon: {
+    fontSize: 28,
+    marginBottom: spacing.xs,
+  },
+  photoPlaceholderText: {
+    color: colors.inkMuted,
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  photoEditBadge: {
+    position: 'absolute',
+    right: spacing.sm,
+    bottom: spacing.sm,
+    backgroundColor: colors.overlay,
+    borderRadius: radius.round,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  photoEditBadgeText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '700',
   },
   starsWrap: {
     marginBottom: spacing.md,

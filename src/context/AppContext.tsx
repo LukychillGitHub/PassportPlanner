@@ -48,7 +48,7 @@ type AppContextValue = {
   addActivity: (data: Omit<Activity, 'id' | 'createdAt'>) => Promise<void>;
   updateActivity: (id: string, data: Omit<Activity, 'id' | 'createdAt'>) => Promise<void>;
   deleteActivity: (id: string) => Promise<void>;
-  stampActivity: (activityId: string, rating: number, note: string) => Promise<void>;
+  stampActivity: (activityId: string, rating: number, note: string, photoUri: string | null) => Promise<void>;
   removeStamp: (activityId: string) => Promise<void>;
   getStamp: (activityId: string) => Stamp | undefined;
   updateProfile: (data: Profile) => Promise<void>;
@@ -118,10 +118,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const stampActivity = useCallback(
-    async (activityId: string, rating: number, note: string) => {
+    async (activityId: string, rating: number, note: string, photoUri: string | null) => {
       const next = [
         ...stamps.filter((s) => s.activityId !== activityId),
-        { activityId, rating, note, stampedAt: Date.now() },
+        { activityId, rating, note, photoUri, stampedAt: Date.now() },
       ];
       await persistStamps(next);
     },

@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { Activity } from '../types';
 import { colors, radius, spacing } from '../theme';
-import { ActivityCard } from '../components/ActivityCard';
+import { PassportBook, PassportBookHandle } from '../components/PassportBook';
 import { StampModal } from '../components/StampModal';
 import { ActivityFormModal } from '../components/ActivityFormModal';
 
@@ -22,6 +22,7 @@ export function PassportScreen() {
   const [stampTarget, setStampTarget] = useState<Activity | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+  const bookRef = useRef<PassportBookHandle>(null);
 
   const stampedCount = activities.filter((a) => getStamp(a.id)).length;
 
@@ -40,6 +41,7 @@ export function PassportScreen() {
       await updateActivity(editingActivity.id, data);
     } else {
       await addActivity(data);
+      bookRef.current?.scrollToIndex(0);
     }
     setFormVisible(false);
     setEditingActivity(null);
@@ -61,9 +63,9 @@ export function PassportScreen() {
     ]);
   }
 
-  async function handleStampConfirm(rating: number, note: string) {
+  async function handleStampConfirm(rating: number, note: string, photoUri: string | null) {
     if (!stampTarget) return;
-    await stampActivity(stampTarget.id, rating, note);
+    await stampActivity(stampTarget.id, rating, note, photoUri);
     setStampTarget(null);
   }
 
@@ -89,28 +91,25 @@ export function PassportScreen() {
         )}
       </View>
 
-      <FlatList
-        data={activities}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>
-              Todavía no hay actividades en el pasaporte.
-              {isAdmin ? ' Tocá "+ Actividad" para agregar la primera.' : ''}
-            </Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <ActivityCard
-            activity={item}
-            stamp={getStamp(item.id)}
+      {activities.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateText}>
+            Todavía no hay actividades en el pasaporte.
+            {isAdmin ? ' Tocá "+ Actividad" para agregar la primera.' : ''}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.bookArea}>
+          <PassportBook
+            ref={bookRef}
+            activities={activities}
+            getStamp={getStamp}
             isAdmin={isAdmin}
-            onSealPress={() => setStampTarget(item)}
-            onEditPress={() => openEditActivityForm(item)}
+            onSealPress={setStampTarget}
+            onEditPress={openEditActivityForm}
           />
-        )}
-      />
+        </View>
+      )}
 
       <StampModal
         visible={!!stampTarget}
@@ -165,14 +164,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 13,
   },
-  listContent: {
-    padding: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xl * 2,
+  bookArea: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
   },
   emptyState: {
+    flex: 1,
     padding: spacing.xl,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyStateText: {
     color: colors.inkMuted,

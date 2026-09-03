@@ -28,9 +28,9 @@ export function RouletteScreen() {
     wheelRef.current?.spin();
   }
 
-  async function handleStampConfirm(rating: number, note: string) {
+  async function handleStampConfirm(rating: number, note: string, photoUri: string | null) {
     if (!stampTarget) return;
-    await stampActivity(stampTarget.id, rating, note);
+    await stampActivity(stampTarget.id, rating, note, photoUri);
     setStampTarget(null);
   }
 
