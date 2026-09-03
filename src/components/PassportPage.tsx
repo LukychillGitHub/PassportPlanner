@@ -17,12 +17,6 @@ export function PassportPage({ activity, stamp, isAdmin, onSealPress, onEditPres
 
   return (
     <View style={styles.page}>
-      <View style={styles.ringColumn}>
-        {[0, 1, 2, 3, 4].map((i) => (
-          <View key={i} style={styles.ring} />
-        ))}
-      </View>
-
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
@@ -75,29 +69,7 @@ export function PassportPage({ activity, stamp, isAdmin, onSealPress, onEditPres
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    flexDirection: 'row',
     backgroundColor: colors.card,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: colors.cardBorder,
-    overflow: 'hidden',
-  },
-  ringColumn: {
-    width: 28,
-    backgroundColor: colors.background,
-    borderRightWidth: 1.5,
-    borderRightColor: colors.cardBorder,
-    alignItems: 'center',
-    justifyContent: 'space-evenly',
-    paddingVertical: spacing.lg,
-  },
-  ring: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: colors.card,
-    borderWidth: 2,
-    borderColor: colors.cardBorder,
   },
   content: {
     flexGrow: 1,
