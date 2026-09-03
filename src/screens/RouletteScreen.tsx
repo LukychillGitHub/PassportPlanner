@@ -4,13 +4,15 @@ import { useApp } from '../context/AppContext';
 import { Activity } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { Wheel, WheelHandle } from '../components/Wheel';
+import { StampModal } from '../components/StampModal';
 
 export function RouletteScreen() {
-  const { activities, getStamp } = useApp();
+  const { activities, getStamp, stampActivity, removeStamp } = useApp();
   const { width } = useWindowDimensions();
   const [onlyPending, setOnlyPending] = useState(true);
   const [spinning, setSpinning] = useState(false);
   const [winner, setWinner] = useState<Activity | null>(null);
+  const [stampTarget, setStampTarget] = useState<Activity | null>(null);
   const wheelRef = useRef<WheelHandle>(null);
 
   const pool = useMemo(() => {
@@ -24,6 +26,18 @@ export function RouletteScreen() {
     if (pool.length < 2 || spinning) return;
     setWinner(null);
     wheelRef.current?.spin();
+  }
+
+  async function handleStampConfirm(rating: number, note: string) {
+    if (!stampTarget) return;
+    await stampActivity(stampTarget.id, rating, note);
+    setStampTarget(null);
+  }
+
+  async function handleRemoveStamp() {
+    if (!stampTarget) return;
+    await removeStamp(stampTarget.id);
+    setStampTarget(null);
   }
 
   return (
@@ -82,8 +96,22 @@ export function RouletteScreen() {
           <Text style={styles.resultLabel}>Tu próxima actividad es</Text>
           <Text style={styles.resultTitle}>{winner.title}</Text>
           {!!winner.description && <Text style={styles.resultDescription}>{winner.description}</Text>}
+          <TouchableOpacity style={styles.sealNowButton} onPress={() => setStampTarget(winner)}>
+            <Text style={styles.sealNowButtonText}>
+              {getStamp(winner.id) ? '✎ Editar sello' : '🖋️ Sellar ahora'}
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
+
+      <StampModal
+        visible={!!stampTarget}
+        activity={stampTarget}
+        existingStamp={stampTarget ? getStamp(stampTarget.id) : undefined}
+        onClose={() => setStampTarget(null)}
+        onConfirm={handleStampConfirm}
+        onRemoveStamp={stampTarget && getStamp(stampTarget.id) ? handleRemoveStamp : undefined}
+      />
     </View>
   );
 }
@@ -183,5 +211,16 @@ const styles = StyleSheet.create({
     color: colors.inkMuted,
     marginTop: 4,
     textAlign: 'center',
+  },
+  sealNowButton: {
+    marginTop: spacing.md,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.round,
+  },
+  sealNowButtonText: {
+    color: colors.white,
+    fontWeight: '700',
   },
 });
