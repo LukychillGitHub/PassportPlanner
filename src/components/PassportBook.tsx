@@ -3,19 +3,12 @@ import React, {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from 'react';
-import {
-  Animated,
-  LayoutChangeEvent,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Animated, LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Activity, Stamp } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { PassportPage } from './PassportPage';
@@ -33,6 +26,8 @@ type Props = {
 };
 
 const MAX_DOTS = 10;
+const RUBBER_BAND = 0.35;
+const FLING_VELOCITY = 700;
 
 export const PassportBook = forwardRef<PassportBookHandle, Props>(function PassportBook(
   { activities, getStamp, isAdmin, onSealPress, onEditPress },
@@ -41,26 +36,46 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
   const [frameWidth, setFrameWidth] = useState(0);
   const [frameHeight, setFrameHeight] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const listRef = useRef<Animated.FlatList<Activity>>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
+  const offsetRef = useRef(0);
+  const gestureStartRef = useRef(0);
   const pendingIndexRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (currentIndex > activities.length - 1) {
-      const next = Math.max(0, activities.length - 1);
-      setCurrentIndex(next);
-      listRef.current?.scrollToOffset({ offset: next * frameWidth, animated: false });
-    }
-  }, [activities.length, currentIndex, frameWidth]);
+  const maxOffset = Math.max(0, (activities.length - 1) * frameWidth);
+
+  const settleTo = useCallback(
+    (targetIndex: number, animated: boolean) => {
+      const clamped = Math.max(0, Math.min(targetIndex, activities.length - 1));
+      const targetOffset = clamped * frameWidth;
+      offsetRef.current = targetOffset;
+      setCurrentIndex(clamped);
+      if (animated) {
+        Animated.spring(scrollX, {
+          toValue: targetOffset,
+          useNativeDriver: true,
+          friction: 10,
+          tension: 65,
+        }).start();
+      } else {
+        scrollX.setValue(targetOffset);
+      }
+    },
+    [activities.length, frameWidth, scrollX]
+  );
 
   useEffect(() => {
     if (frameWidth > 0 && pendingIndexRef.current !== null) {
-      const target = Math.max(0, Math.min(pendingIndexRef.current, activities.length - 1));
+      const target = pendingIndexRef.current;
       pendingIndexRef.current = null;
-      listRef.current?.scrollToOffset({ offset: target * frameWidth, animated: false });
-      setCurrentIndex(target);
+      settleTo(target, false);
     }
-  }, [frameWidth, activities.length]);
+  }, [frameWidth, settleTo]);
+
+  useEffect(() => {
+    if (frameWidth > 0 && currentIndex > activities.length - 1) {
+      settleTo(activities.length - 1, false);
+    }
+  }, [activities.length, currentIndex, frameWidth, settleTo]);
 
   useImperativeHandle(ref, () => ({
     scrollToIndex(index: number) {
@@ -68,9 +83,7 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
         pendingIndexRef.current = index;
         return;
       }
-      const clamped = Math.max(0, Math.min(index, activities.length - 1));
-      listRef.current?.scrollToOffset({ offset: clamped * frameWidth, animated: true });
-      setCurrentIndex(clamped);
+      settleTo(index, true);
     },
   }));
 
@@ -79,64 +92,34 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
     setFrameHeight(event.nativeEvent.layout.height);
   }
 
-  function handleMomentumEnd(event: NativeSyntheticEvent<NativeScrollEvent>) {
-    if (!frameWidth) return;
-    const index = Math.round(event.nativeEvent.contentOffset.x / frameWidth);
-    setCurrentIndex(index);
-  }
-
   function goToPage(delta: number) {
-    const next = Math.max(0, Math.min(currentIndex + delta, activities.length - 1));
-    listRef.current?.scrollToOffset({ offset: next * frameWidth, animated: true });
-    setCurrentIndex(next);
+    settleTo(currentIndex + delta, true);
   }
 
-  const renderItem = useCallback(
-    ({ item, index }: { item: Activity; index: number }) => {
-      if (!frameWidth) return null;
-      const inputRange = [(index - 1) * frameWidth, index * frameWidth, (index + 1) * frameWidth];
-      const scale = scrollX.interpolate({
-        inputRange,
-        outputRange: [0.94, 1, 0.94],
-        extrapolate: 'clamp',
-      });
-      const rotateY = scrollX.interpolate({
-        inputRange,
-        outputRange: ['24deg', '0deg', '-24deg'],
-        extrapolate: 'clamp',
-      });
-      const translateX = scrollX.interpolate({
-        inputRange,
-        outputRange: [18, 0, -18],
-        extrapolate: 'clamp',
-      });
-      const shadowOpacity = scrollX.interpolate({
-        inputRange,
-        outputRange: [0.35, 0, 0.35],
-        extrapolate: 'clamp',
-      });
-      return (
-        <Animated.View
-          style={{
-            width: frameWidth,
-            height: frameHeight,
-            transform: [{ perspective: 900 }, { translateX }, { rotateY }, { scale }],
-          }}
-        >
-          <View style={styles.pageSlot}>
-            <PassportPage
-              activity={item}
-              stamp={getStamp(item.id)}
-              isAdmin={isAdmin}
-              onSealPress={() => onSealPress(item)}
-              onEditPress={() => onEditPress(item)}
-            />
-            <Animated.View pointerEvents="none" style={[styles.pageShade, { opacity: shadowOpacity }]} />
-          </View>
-        </Animated.View>
-      );
-    },
-    [frameWidth, frameHeight, getStamp, isAdmin, onSealPress, onEditPress, scrollX]
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(frameWidth > 0 && activities.length > 1)
+        .activeOffsetX([-10, 10])
+        .failOffsetY([-15, 15])
+        .onStart(() => {
+          gestureStartRef.current = offsetRef.current;
+        })
+        .onUpdate((event) => {
+          let next = gestureStartRef.current - event.translationX;
+          if (next < 0) next = next * RUBBER_BAND;
+          if (next > maxOffset) next = maxOffset + (next - maxOffset) * RUBBER_BAND;
+          scrollX.setValue(next);
+        })
+        .onEnd((event) => {
+          const startIndex = Math.round(gestureStartRef.current / frameWidth);
+          let targetIndex = Math.round((gestureStartRef.current - event.translationX) / frameWidth);
+          if (Math.abs(event.velocityX) > FLING_VELOCITY) {
+            targetIndex = event.velocityX < 0 ? startIndex + 1 : startIndex - 1;
+          }
+          settleTo(targetIndex, true);
+        }),
+    [frameWidth, maxOffset, activities.length, scrollX, settleTo]
   );
 
   const showDots = activities.length > 1 && activities.length <= MAX_DOTS;
@@ -145,25 +128,24 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
     <View style={styles.wrapper}>
       <View style={styles.cover} onLayout={handleLayout}>
         {frameWidth > 0 && frameHeight > 0 && (
-          <Animated.FlatList
-            ref={listRef}
-            style={styles.flatList}
-            data={activities}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            decelerationRate="fast"
-            snapToInterval={frameWidth}
-            bounces={false}
-            getItemLayout={(_, index) => ({ length: frameWidth, offset: frameWidth * index, index })}
-            onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
-              useNativeDriver: true,
-            })}
-            scrollEventThrottle={16}
-            onMomentumScrollEnd={handleMomentumEnd}
-          />
+          <GestureDetector gesture={panGesture}>
+            <View style={styles.gestureArea}>
+              {activities.map((item, index) => (
+                <PassportBookPage
+                  key={item.id}
+                  activity={item}
+                  index={index}
+                  frameWidth={frameWidth}
+                  frameHeight={frameHeight}
+                  scrollX={scrollX}
+                  stamp={getStamp(item.id)}
+                  isAdmin={isAdmin}
+                  onSealPress={() => onSealPress(item)}
+                  onEditPress={() => onEditPress(item)}
+                />
+              ))}
+            </View>
+          </GestureDetector>
         )}
 
         {currentIndex > 0 && (
@@ -182,10 +164,7 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
         {showDots && (
           <View style={styles.dotsRow}>
             {activities.map((activity, index) => (
-              <View
-                key={activity.id}
-                style={[styles.dot, index === currentIndex && styles.dotActive]}
-              />
+              <View key={activity.id} style={[styles.dot, index === currentIndex && styles.dotActive]} />
             ))}
           </View>
         )}
@@ -197,6 +176,60 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
   );
 });
 
+type PageProps = {
+  activity: Activity;
+  index: number;
+  frameWidth: number;
+  frameHeight: number;
+  scrollX: Animated.Value;
+  stamp?: Stamp;
+  isAdmin: boolean;
+  onSealPress: () => void;
+  onEditPress: () => void;
+};
+
+function PassportBookPage({
+  activity,
+  index,
+  frameWidth,
+  frameHeight,
+  scrollX,
+  stamp,
+  isAdmin,
+  onSealPress,
+  onEditPress,
+}: PageProps) {
+  const inputRange = [(index - 1) * frameWidth, index * frameWidth, (index + 1) * frameWidth];
+  const translateX = Animated.subtract(index * frameWidth, scrollX);
+  const scale = scrollX.interpolate({ inputRange, outputRange: [0.94, 1, 0.94], extrapolate: 'clamp' });
+  const rotateY = scrollX.interpolate({ inputRange, outputRange: ['24deg', '0deg', '-24deg'], extrapolate: 'clamp' });
+  const shadowOpacity = scrollX.interpolate({ inputRange, outputRange: [0.35, 0, 0.35], extrapolate: 'clamp' });
+
+  return (
+    <Animated.View
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: frameWidth,
+        height: frameHeight,
+        transform: [{ perspective: 900 }, { translateX }, { rotateY }, { scale }],
+      }}
+    >
+      <View style={styles.pageSlot}>
+        <PassportPage
+          activity={activity}
+          stamp={stamp}
+          isAdmin={isAdmin}
+          onSealPress={onSealPress}
+          onEditPress={onEditPress}
+        />
+        <Animated.View pointerEvents="none" style={[styles.pageShade, { opacity: shadowOpacity }]} />
+      </View>
+    </Animated.View>
+  );
+}
+
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
@@ -207,7 +240,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.sm,
   },
-  flatList: {
+  gestureArea: {
     flex: 1,
   },
   pageSlot: {
