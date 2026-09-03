@@ -32,8 +32,41 @@ Estructura principal:
 src/
   context/AppContext.tsx   estado global + persistencia (AsyncStorage)
   screens/                 Cuenta, Pasaporte, Ruleta
-  components/              StarRating, ActivityCard, StampModal,
-                            ActivityFormModal, Wheel (ruleta con react-native-svg)
+  components/              StarRating, PassportBook/PassportPage (libreta con páginas),
+                            StampModal, ActivityFormModal, ImageCropperModal (recorte de fotos),
+                            Wheel (ruleta con react-native-svg)
   theme.ts                 colores y estilos compartidos
   types.ts                 tipos (Activity, Stamp, Profile)
 ```
+
+## Producción (EAS Build)
+
+El proyecto ya tiene `eas.json` con perfiles `development`, `preview` (APK interno de Android
+para probar) y `production`, y `app.json` con `ios.bundleIdentifier` / `android.package`
+(`com.lukychill.passportplanner` — cambialo antes del primer build si querés otro identificador,
+porque no se puede modificar después de publicar en las tiendas).
+
+Pasos para generar la build instalable:
+
+```bash
+npm install -g eas-cli   # o usar "npx eas-cli" sin instalar global
+eas login                # con tu cuenta de Expo (gratis, se crea en expo.dev)
+eas build:configure      # vincula el proyecto a tu cuenta (crea el projectId)
+
+# Build de prueba (APK de Android que se instala directo, sin Play Store)
+eas build --platform android --profile preview
+
+# Build de producción para las tiendas
+eas build --platform android --profile production
+eas build --platform ios --profile production   # requiere cuenta de Apple Developer
+```
+
+Para publicarla en las tiendas hace falta además:
+
+- **Google Play**: cuenta de Google Play Console (pago único de USD 25), y luego
+  `eas submit --platform android`.
+- **App Store**: cuenta de Apple Developer Program (USD 99/año), y luego
+  `eas submit --platform ios`.
+
+Ambas tiendas piden también: capturas de pantalla, descripción, ícono ya incluido en el proyecto,
+y una política de privacidad (obligatoria porque la app pide acceso a fotos).
