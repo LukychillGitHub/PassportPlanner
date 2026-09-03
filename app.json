@@ -37,7 +37,8 @@
         {
           "color": "#8C5A2B"
         }
-      ]
+      ],
+      "./plugins/withMavenCentralMirror.js"
     ]
   }
 }
