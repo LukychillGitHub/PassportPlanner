@@ -43,6 +43,7 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
   const [currentIndex, setCurrentIndex] = useState(0);
   const listRef = useRef<Animated.FlatList<Activity>>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
+  const pendingIndexRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (currentIndex > activities.length - 1) {
@@ -52,8 +53,21 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
     }
   }, [activities.length, currentIndex, frameWidth]);
 
+  useEffect(() => {
+    if (frameWidth > 0 && pendingIndexRef.current !== null) {
+      const target = Math.max(0, Math.min(pendingIndexRef.current, activities.length - 1));
+      pendingIndexRef.current = null;
+      listRef.current?.scrollToOffset({ offset: target * frameWidth, animated: false });
+      setCurrentIndex(target);
+    }
+  }, [frameWidth, activities.length]);
+
   useImperativeHandle(ref, () => ({
     scrollToIndex(index: number) {
+      if (!frameWidth) {
+        pendingIndexRef.current = index;
+        return;
+      }
       const clamped = Math.max(0, Math.min(index, activities.length - 1));
       listRef.current?.scrollToOffset({ offset: clamped * frameWidth, animated: true });
       setCurrentIndex(clamped);
@@ -83,16 +97,32 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
       const inputRange = [(index - 1) * frameWidth, index * frameWidth, (index + 1) * frameWidth];
       const scale = scrollX.interpolate({
         inputRange,
-        outputRange: [0.92, 1, 0.92],
+        outputRange: [0.94, 1, 0.94],
         extrapolate: 'clamp',
       });
-      const opacity = scrollX.interpolate({
+      const rotateY = scrollX.interpolate({
         inputRange,
-        outputRange: [0.55, 1, 0.55],
+        outputRange: ['24deg', '0deg', '-24deg'],
+        extrapolate: 'clamp',
+      });
+      const translateX = scrollX.interpolate({
+        inputRange,
+        outputRange: [18, 0, -18],
+        extrapolate: 'clamp',
+      });
+      const shadowOpacity = scrollX.interpolate({
+        inputRange,
+        outputRange: [0.35, 0, 0.35],
         extrapolate: 'clamp',
       });
       return (
-        <Animated.View style={{ width: frameWidth, height: frameHeight, transform: [{ scale }], opacity }}>
+        <Animated.View
+          style={{
+            width: frameWidth,
+            height: frameHeight,
+            transform: [{ perspective: 900 }, { translateX }, { rotateY }, { scale }],
+          }}
+        >
           <View style={styles.pageSlot}>
             <PassportPage
               activity={item}
@@ -101,6 +131,7 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
               onSealPress={() => onSealPress(item)}
               onEditPress={() => onEditPress(item)}
             />
+            <Animated.View pointerEvents="none" style={[styles.pageShade, { opacity: shadowOpacity }]} />
           </View>
         </Animated.View>
       );
@@ -182,6 +213,15 @@ const styles = StyleSheet.create({
   pageSlot: {
     flex: 1,
     marginHorizontal: spacing.xs,
+  },
+  pageShade: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: radius.md,
+    backgroundColor: '#000000',
   },
   navButton: {
     position: 'absolute',

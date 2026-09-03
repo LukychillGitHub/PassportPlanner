@@ -14,6 +14,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../context/AppContext';
 import { colors, radius, spacing } from '../theme';
+import { ImageCropperModal } from '../components/ImageCropperModal';
 
 export function AccountScreen() {
   const { profile, updateProfile, isAdmin, loginAdmin, logoutAdmin, activities, stamps } = useApp();
@@ -22,6 +23,7 @@ export function AccountScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(profile.photoUri);
   const [pin, setPin] = useState('');
   const [showPinInput, setShowPinInput] = useState(false);
+  const [pickedPhotoUri, setPickedPhotoUri] = useState<string | null>(null);
 
   const hasChanges = name !== profile.name || bio !== profile.bio || photoUri !== profile.photoUri;
 
@@ -33,12 +35,10 @@ export function AccountScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
+      quality: 1,
     });
     if (!result.canceled && result.assets?.[0]?.uri) {
-      setPhotoUri(result.assets[0].uri);
+      setPickedPhotoUri(result.assets[0].uri);
     }
   }
 
@@ -162,6 +162,18 @@ export function AccountScreen() {
           )}
         </View>
       </ScrollView>
+
+      <ImageCropperModal
+        visible={!!pickedPhotoUri}
+        imageUri={pickedPhotoUri}
+        aspect={1}
+        shape="circle"
+        onCancel={() => setPickedPhotoUri(null)}
+        onConfirm={(croppedUri) => {
+          setPhotoUri(croppedUri);
+          setPickedPhotoUri(null);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

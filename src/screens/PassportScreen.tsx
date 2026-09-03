@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '../context/AppContext';
 import { Activity } from '../types';
 import { colors, radius, spacing } from '../theme';
@@ -7,7 +8,12 @@ import { PassportBook, PassportBookHandle } from '../components/PassportBook';
 import { StampModal } from '../components/StampModal';
 import { ActivityFormModal } from '../components/ActivityFormModal';
 
-export function PassportScreen() {
+type Props = {
+  route?: { params?: { focusActivityId?: string } };
+  navigation?: { setParams: (params: Record<string, unknown>) => void };
+};
+
+export function PassportScreen({ route, navigation }: Props) {
   const {
     activities,
     getStamp,
@@ -25,6 +31,19 @@ export function PassportScreen() {
   const bookRef = useRef<PassportBookHandle>(null);
 
   const stampedCount = activities.filter((a) => getStamp(a.id)).length;
+
+  const focusActivityId = route?.params?.focusActivityId;
+  useFocusEffect(
+    useCallback(() => {
+      if (!focusActivityId) return;
+      const index = activities.findIndex((a) => a.id === focusActivityId);
+      if (index >= 0) {
+        bookRef.current?.scrollToIndex(index);
+      }
+      navigation?.setParams({ focusActivityId: undefined });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [focusActivityId])
+  );
 
   function openNewActivityForm() {
     setEditingActivity(null);

@@ -1,18 +1,18 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../context/AppContext';
 import { Activity } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { Wheel, WheelHandle } from '../components/Wheel';
-import { StampModal } from '../components/StampModal';
 
 export function RouletteScreen() {
-  const { activities, getStamp, stampActivity, removeStamp } = useApp();
+  const { activities, getStamp } = useApp();
   const { width } = useWindowDimensions();
+  const navigation = useNavigation<any>();
   const [onlyPending, setOnlyPending] = useState(true);
   const [spinning, setSpinning] = useState(false);
   const [winner, setWinner] = useState<Activity | null>(null);
-  const [stampTarget, setStampTarget] = useState<Activity | null>(null);
   const wheelRef = useRef<WheelHandle>(null);
 
   const pool = useMemo(() => {
@@ -28,16 +28,14 @@ export function RouletteScreen() {
     wheelRef.current?.spin();
   }
 
-  async function handleStampConfirm(rating: number, note: string, photoUri: string | null) {
-    if (!stampTarget) return;
-    await stampActivity(stampTarget.id, rating, note, photoUri);
-    setStampTarget(null);
+  function selectFilter(pending: boolean) {
+    setOnlyPending(pending);
+    setWinner(null);
   }
 
-  async function handleRemoveStamp() {
-    if (!stampTarget) return;
-    await removeStamp(stampTarget.id);
-    setStampTarget(null);
+  function goToActivity() {
+    if (!winner) return;
+    navigation.navigate('Pasaporte', { focusActivityId: winner.id });
   }
 
   return (
@@ -48,13 +46,13 @@ export function RouletteScreen() {
       <View style={styles.filterRow}>
         <TouchableOpacity
           style={[styles.filterChip, onlyPending && styles.filterChipActive]}
-          onPress={() => setOnlyPending(true)}
+          onPress={() => selectFilter(true)}
         >
           <Text style={[styles.filterChipText, onlyPending && styles.filterChipTextActive]}>Pendientes</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.filterChip, !onlyPending && styles.filterChipActive]}
-          onPress={() => setOnlyPending(false)}
+          onPress={() => selectFilter(false)}
         >
           <Text style={[styles.filterChipText, !onlyPending && styles.filterChipTextActive]}>Todas</Text>
         </TouchableOpacity>
@@ -96,22 +94,13 @@ export function RouletteScreen() {
           <Text style={styles.resultLabel}>Tu próxima actividad es</Text>
           <Text style={styles.resultTitle}>{winner.title}</Text>
           {!!winner.description && <Text style={styles.resultDescription}>{winner.description}</Text>}
-          <TouchableOpacity style={styles.sealNowButton} onPress={() => setStampTarget(winner)}>
-            <Text style={styles.sealNowButtonText}>
-              {getStamp(winner.id) ? '✎ Editar sello' : '🖋️ Sellar ahora'}
+          <TouchableOpacity style={styles.goButton} onPress={goToActivity}>
+            <Text style={styles.goButtonText}>
+              {getStamp(winner.id) ? '📘 Ver en el pasaporte' : '📘 Ir a esta página'}
             </Text>
           </TouchableOpacity>
         </View>
       )}
-
-      <StampModal
-        visible={!!stampTarget}
-        activity={stampTarget}
-        existingStamp={stampTarget ? getStamp(stampTarget.id) : undefined}
-        onClose={() => setStampTarget(null)}
-        onConfirm={handleStampConfirm}
-        onRemoveStamp={stampTarget && getStamp(stampTarget.id) ? handleRemoveStamp : undefined}
-      />
     </View>
   );
 }
@@ -212,14 +201,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
-  sealNowButton: {
+  goButton: {
     marginTop: spacing.md,
     backgroundColor: colors.primary,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
     borderRadius: radius.round,
   },
-  sealNowButtonText: {
+  goButtonText: {
     color: colors.white,
     fontWeight: '700',
   },

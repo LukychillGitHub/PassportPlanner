@@ -16,6 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Activity, Stamp } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { StarRating } from './StarRating';
+import { ImageCropperModal } from './ImageCropperModal';
 
 type Props = {
   visible: boolean;
@@ -30,6 +31,7 @@ export function StampModal({ visible, activity, existingStamp, onClose, onConfir
   const [rating, setRating] = useState(existingStamp?.rating ?? 0);
   const [note, setNote] = useState(existingStamp?.note ?? '');
   const [photoUri, setPhotoUri] = useState<string | null>(existingStamp?.photoUri ?? null);
+  const [pickedPhotoUri, setPickedPhotoUri] = useState<string | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -51,16 +53,15 @@ export function StampModal({ visible, activity, existingStamp, onClose, onConfir
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.7,
+      quality: 1,
     });
     if (!result.canceled && result.assets?.[0]?.uri) {
-      setPhotoUri(result.assets[0].uri);
+      setPickedPhotoUri(result.assets[0].uri);
     }
   }
 
   return (
+    <>
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.backdrop}
@@ -130,6 +131,19 @@ export function StampModal({ visible, activity, existingStamp, onClose, onConfir
         </View>
       </KeyboardAvoidingView>
     </Modal>
+
+    <ImageCropperModal
+      visible={!!pickedPhotoUri}
+      imageUri={pickedPhotoUri}
+      aspect={4 / 3}
+      shape="rect"
+      onCancel={() => setPickedPhotoUri(null)}
+      onConfirm={(croppedUri) => {
+        setPhotoUri(croppedUri);
+        setPickedPhotoUri(null);
+      }}
+    />
+    </>
   );
 }
 
