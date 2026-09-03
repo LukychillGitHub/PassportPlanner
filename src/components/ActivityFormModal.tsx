@@ -15,12 +15,13 @@ import { colors, radius, spacing } from '../theme';
 type Props = {
   visible: boolean;
   activity?: Activity | null;
+  categories?: string[];
   onClose: () => void;
   onSubmit: (data: { title: string; description: string; category: string }) => void;
   onDelete?: () => void;
 };
 
-export function ActivityFormModal({ visible, activity, onClose, onSubmit, onDelete }: Props) {
+export function ActivityFormModal({ visible, activity, categories = [], onClose, onSubmit, onDelete }: Props) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -61,6 +62,21 @@ export function ActivityFormModal({ visible, activity, onClose, onSubmit, onDele
             placeholder="Ej: Aire libre"
             placeholderTextColor={colors.inkMuted}
           />
+          {categories.length > 0 && (
+            <View style={styles.categoryChipsRow}>
+              {categories.map((cat) => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.categoryChip, category === cat && styles.categoryChipActive]}
+                  onPress={() => setCategory(cat)}
+                >
+                  <Text style={[styles.categoryChipText, category === cat && styles.categoryChipTextActive]}>
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
           <Text style={styles.label}>Descripción</Text>
           <TextInput
@@ -139,6 +155,31 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 80,
     textAlignVertical: 'top',
+  },
+  categoryChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  categoryChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.round,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  categoryChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  categoryChipText: {
+    color: colors.inkMuted,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  categoryChipTextActive: {
+    color: colors.white,
   },
   buttonRow: {
     flexDirection: 'row',

@@ -118,12 +118,22 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
         )}
 
         {currentIndex > 0 && (
-          <TouchableOpacity style={[styles.navButton, styles.navButtonLeft]} onPress={() => goToPage(-1)}>
+          <TouchableOpacity
+            style={[styles.navButton, styles.navButtonLeft]}
+            onPress={() => goToPage(-1)}
+            accessibilityRole="button"
+            accessibilityLabel="Página anterior"
+          >
             <Text style={styles.navButtonText}>‹</Text>
           </TouchableOpacity>
         )}
         {currentIndex < activities.length - 1 && (
-          <TouchableOpacity style={[styles.navButton, styles.navButtonRight]} onPress={() => goToPage(1)}>
+          <TouchableOpacity
+            style={[styles.navButton, styles.navButtonRight]}
+            onPress={() => goToPage(1)}
+            accessibilityRole="button"
+            accessibilityLabel="Página siguiente"
+          >
             <Text style={styles.navButtonText}>›</Text>
           </TouchableOpacity>
         )}

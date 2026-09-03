@@ -77,7 +77,12 @@ export function StampModal({ visible, activity, existingStamp, onClose, onConfir
             <Text style={styles.title}>{activity.title}</Text>
             <Text style={styles.subtitle}>¿Cómo estuvo la experiencia?</Text>
 
-            <TouchableOpacity style={styles.photoPicker} onPress={pickPhoto}>
+            <TouchableOpacity
+              style={styles.photoPicker}
+              onPress={pickPhoto}
+              accessibilityRole="button"
+              accessibilityLabel={photoUri ? 'Cambiar foto de la actividad' : 'Agregar foto de la actividad'}
+            >
               {photoUri ? (
                 <Image source={{ uri: photoUri }} style={styles.photo} />
               ) : (

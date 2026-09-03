@@ -1,12 +1,15 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Haptics from 'expo-haptics';
 import { useApp } from '../context/AppContext';
 import { Activity } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { PassportBook, PassportBookHandle } from '../components/PassportBook';
 import { StampModal } from '../components/StampModal';
 import { ActivityFormModal } from '../components/ActivityFormModal';
+
+const ALL_CATEGORIES = 'Todas';
 
 type Props = {
   route?: { params?: { focusActivityId?: string } };
@@ -28,22 +31,48 @@ export function PassportScreen({ route, navigation }: Props) {
   const [stampTarget, setStampTarget] = useState<Activity | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState(ALL_CATEGORIES);
   const bookRef = useRef<PassportBookHandle>(null);
 
   const stampedCount = activities.filter((a) => getStamp(a.id)).length;
 
+  const categories = useMemo(
+    () => Array.from(new Set(activities.map((a) => a.category).filter(Boolean))),
+    [activities]
+  );
+
+  const visibleActivities = useMemo(
+    () => (categoryFilter === ALL_CATEGORIES ? activities : activities.filter((a) => a.category === categoryFilter)),
+    [activities, categoryFilter]
+  );
+
   const focusActivityId = route?.params?.focusActivityId;
+  const pendingFocusRef = useRef<string | null>(null);
+  const pendingScrollTopRef = useRef(false);
+
   useFocusEffect(
     useCallback(() => {
       if (!focusActivityId) return;
-      const index = activities.findIndex((a) => a.id === focusActivityId);
-      if (index >= 0) {
-        bookRef.current?.scrollToIndex(index);
-      }
+      pendingFocusRef.current = focusActivityId;
+      setCategoryFilter(ALL_CATEGORIES);
       navigation?.setParams({ focusActivityId: undefined });
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [focusActivityId])
   );
+
+  useEffect(() => {
+    if (pendingScrollTopRef.current) {
+      bookRef.current?.scrollToIndex(0);
+      pendingScrollTopRef.current = false;
+      return;
+    }
+    if (!pendingFocusRef.current) return;
+    const index = visibleActivities.findIndex((a) => a.id === pendingFocusRef.current);
+    if (index >= 0) {
+      bookRef.current?.scrollToIndex(index);
+      pendingFocusRef.current = null;
+    }
+  }, [visibleActivities]);
 
   function openNewActivityForm() {
     setEditingActivity(null);
@@ -59,8 +88,9 @@ export function PassportScreen({ route, navigation }: Props) {
     if (editingActivity) {
       await updateActivity(editingActivity.id, data);
     } else {
+      pendingScrollTopRef.current = true;
       await addActivity(data);
-      bookRef.current?.scrollToIndex(0);
+      setCategoryFilter(ALL_CATEGORIES);
     }
     setFormVisible(false);
     setEditingActivity(null);
@@ -85,6 +115,7 @@ export function PassportScreen({ route, navigation }: Props) {
   async function handleStampConfirm(rating: number, note: string, photoUri: string | null) {
     if (!stampTarget) return;
     await stampActivity(stampTarget.id, rating, note, photoUri);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     setStampTarget(null);
   }
 
@@ -104,11 +135,40 @@ export function PassportScreen({ route, navigation }: Props) {
           </Text>
         </View>
         {isAdmin && (
-          <TouchableOpacity style={styles.addButton} onPress={openNewActivityForm}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={openNewActivityForm}
+            accessibilityRole="button"
+            accessibilityLabel="Agregar nueva actividad"
+          >
             <Text style={styles.addButtonText}>+ Actividad</Text>
           </TouchableOpacity>
         )}
       </View>
+
+      {activities.length > 1 && categories.length > 1 && (
+        <View style={styles.filterRow}>
+          <TouchableOpacity
+            style={[styles.filterChip, categoryFilter === ALL_CATEGORIES && styles.filterChipActive]}
+            onPress={() => setCategoryFilter(ALL_CATEGORIES)}
+          >
+            <Text style={[styles.filterChipText, categoryFilter === ALL_CATEGORIES && styles.filterChipTextActive]}>
+              Todas
+            </Text>
+          </TouchableOpacity>
+          {categories.map((category) => (
+            <TouchableOpacity
+              key={category}
+              style={[styles.filterChip, categoryFilter === category && styles.filterChipActive]}
+              onPress={() => setCategoryFilter(category)}
+            >
+              <Text style={[styles.filterChipText, categoryFilter === category && styles.filterChipTextActive]}>
+                {category}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {activities.length === 0 ? (
         <View style={styles.emptyState}>
@@ -117,11 +177,15 @@ export function PassportScreen({ route, navigation }: Props) {
             {isAdmin ? ' Tocá "+ Actividad" para agregar la primera.' : ''}
           </Text>
         </View>
+      ) : visibleActivities.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateText}>No hay actividades en la categoría "{categoryFilter}".</Text>
+        </View>
       ) : (
         <View style={styles.bookArea}>
           <PassportBook
             ref={bookRef}
-            activities={activities}
+            activities={visibleActivities}
             getStamp={getStamp}
             isAdmin={isAdmin}
             onSealPress={setStampTarget}
@@ -142,6 +206,7 @@ export function PassportScreen({ route, navigation }: Props) {
       <ActivityFormModal
         visible={formVisible}
         activity={editingActivity}
+        categories={categories}
         onClose={() => {
           setFormVisible(false);
           setEditingActivity(null);
@@ -182,6 +247,32 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: '700',
     fontSize: 13,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  filterChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.round,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  filterChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  filterChipText: {
+    color: colors.inkMuted,
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  filterChipTextActive: {
+    color: colors.white,
   },
   bookArea: {
     flex: 1,

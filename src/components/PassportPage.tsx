@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as Sharing from 'expo-sharing';
 import { Activity, Stamp } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { StarRating } from './StarRating';
@@ -15,6 +16,21 @@ type Props = {
 export function PassportPage({ activity, stamp, isAdmin, onSealPress, onEditPress }: Props) {
   const isStamped = !!stamp;
 
+  async function handleShare() {
+    if (!stamp) return;
+    const stars = '★'.repeat(stamp.rating) + '☆'.repeat(5 - stamp.rating);
+    const message = `${activity.title}\n${stars}${stamp.note ? `\n"${stamp.note}"` : ''}\n\n— Mi Pasaporte de Actividades`;
+    try {
+      if (stamp.photoUri && (await Sharing.isAvailableAsync())) {
+        await Sharing.shareAsync(stamp.photoUri, { dialogTitle: activity.title });
+      } else {
+        await Share.share({ message });
+      }
+    } catch {
+      // el usuario canceló el share sheet o no hay app disponible; no hace falta avisar
+    }
+  }
+
   return (
     <View style={styles.page}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -24,7 +40,12 @@ export function PassportPage({ activity, stamp, isAdmin, onSealPress, onEditPres
             <Text style={styles.title}>{activity.title}</Text>
           </View>
           {isAdmin && (
-            <TouchableOpacity onPress={onEditPress} style={styles.editButton}>
+            <TouchableOpacity
+              onPress={onEditPress}
+              style={styles.editButton}
+              accessibilityRole="button"
+              accessibilityLabel={`Editar actividad ${activity.title}`}
+            >
               <Text style={styles.editButtonText}>Editar</Text>
             </TouchableOpacity>
           )}
@@ -48,9 +69,19 @@ export function PassportPage({ activity, stamp, isAdmin, onSealPress, onEditPres
             </View>
             <StarRating rating={stamp!.rating} readOnly size={20} />
             {!!stamp!.note && <Text style={styles.note}>“{stamp!.note}”</Text>}
-            <TouchableOpacity onPress={onSealPress} style={styles.editStampButton}>
-              <Text style={styles.editStampButtonText}>Editar sello</Text>
-            </TouchableOpacity>
+            <View style={styles.stampActionsRow}>
+              <TouchableOpacity onPress={onSealPress} style={styles.editStampButton}>
+                <Text style={styles.editStampButtonText}>Editar sello</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleShare}
+                style={styles.editStampButton}
+                accessibilityRole="button"
+                accessibilityLabel="Compartir sello"
+              >
+                <Text style={styles.editStampButtonText}>Compartir</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <View style={styles.sealArea}>
@@ -188,6 +219,10 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     color: colors.ink,
     marginTop: spacing.xs,
+  },
+  stampActionsRow: {
+    flexDirection: 'row',
+    gap: spacing.lg,
   },
   editStampButton: {
     marginTop: spacing.md,

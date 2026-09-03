@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import * as Haptics from 'expo-haptics';
 import { useApp } from '../context/AppContext';
 import { Activity } from '../types';
 import { colors, radius, spacing } from '../theme';
@@ -76,6 +77,7 @@ export function RouletteScreen() {
             onSpinEnd={(activity) => {
               setSpinning(false);
               setWinner(activity);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
             }}
           />
         )}

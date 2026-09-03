@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { Directory, File, Paths } from 'expo-file-system';
 import { colors, radius, spacing } from '../theme';
 
 type Props = {
@@ -23,6 +24,23 @@ type Props = {
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
 const FRAME_MAX_WIDTH = 300;
+
+// Copia la imagen recortada (que vive en un directorio de caché temporal) al
+// directorio de documentos, para que sobreviva a una limpieza de caché del SO.
+async function persistPhoto(uri: string): Promise<string> {
+  try {
+    const photosDir = new Directory(Paths.document, 'photos');
+    if (!photosDir.exists) {
+      photosDir.create({ intermediates: true });
+    }
+    const sourceFile = new File(uri);
+    const destFile = new File(photosDir, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`);
+    await sourceFile.copy(destFile);
+    return destFile.uri;
+  } catch {
+    return uri;
+  }
+}
 
 export function ImageCropperModal({ visible, imageUri, aspect, shape = 'rect', onCancel, onConfirm }: Props) {
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
@@ -124,7 +142,8 @@ export function ImageCropperModal({ visible, imageUri, aspect, shape = 'rect', o
         ],
         { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
       );
-      onConfirm(result.uri);
+      const persistedUri = await persistPhoto(result.uri);
+      onConfirm(persistedUri);
     } finally {
       setSaving(false);
     }

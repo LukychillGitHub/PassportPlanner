@@ -5,6 +5,7 @@ const KEYS = {
   stamps: '@passportplanner/stamps',
   profile: '@passportplanner/profile',
   adminPin: '@passportplanner/adminPin',
+  reminderEnabled: '@passportplanner/reminderEnabled',
 } as const;
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {
