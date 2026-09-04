@@ -20,6 +20,11 @@ type Props = {
   shape?: 'circle' | 'rect';
   onCancel: () => void;
   onConfirm: (croppedUri: string) => void;
+  // Cuando ya se está mostrando dentro de otro <Modal> (como el de sellar),
+  // no hay que envolver el contenido en un segundo <Modal> nativo: iOS no
+  // siempre logra presentar dos modales al mismo tiempo, y la pantalla de
+  // recorte simplemente no aparecía.
+  asOverlay?: boolean;
 };
 
 const MIN_ZOOM = 1;
@@ -45,7 +50,15 @@ async function persistPhoto(uri: string): Promise<{ uri: string; uploaded: boole
   }
 }
 
-export function ImageCropperModal({ visible, imageUri, aspect, shape = 'rect', onCancel, onConfirm }: Props) {
+export function ImageCropperModal({
+  visible,
+  imageUri,
+  aspect,
+  shape = 'rect',
+  asOverlay = false,
+  onCancel,
+  onConfirm,
+}: Props) {
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -164,8 +177,9 @@ export function ImageCropperModal({ visible, imageUri, aspect, shape = 'rect', o
     }
   }
 
-  return (
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={onCancel}>
+  if (!visible || !imageUri) return null;
+
+  const content = (
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <Text style={styles.title}>Ajustá la foto</Text>
@@ -225,6 +239,13 @@ export function ImageCropperModal({ visible, imageUri, aspect, shape = 'rect', o
           </View>
         </View>
       </View>
+  );
+
+  if (asOverlay) return content;
+
+  return (
+    <Modal visible animationType="fade" transparent onRequestClose={onCancel}>
+      {content}
     </Modal>
   );
 }
