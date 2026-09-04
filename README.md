@@ -7,7 +7,7 @@ Aplicación móvil (Expo + React Native + TypeScript) para coleccionar planes en
 La app tiene un menú inferior con tres secciones:
 
 - **Cuenta** — nombre, foto de perfil, descripción y estadísticas (sellos y actividades totales). Desde acá también se activa el **modo administrador**.
-- **Pasaporte** — una libreta con efecto de página tipo revista: se arrastra la hoja para pasarla (curva y sombra reales, con `react-native-page-flipper`). Cada actividad se puede "Sellar": elegís de 1 a 5 estrellas, escribís una breve descripción y opcionalmente agregás una foto (recortable con `ImageCropperModal`). En modo admin aparece un botón para agregar actividades nuevas y "Editar"/"Eliminar" en cada página.
+- **Pasaporte** — una libreta con una página por actividad, que se desliza como un carrusel (`FlatList` nativo con paginación) o con las flechas ‹ ›. Cada actividad se puede "Sellar": elegís de 1 a 5 estrellas, escribís una breve descripción y opcionalmente agregás una foto (recortable con `ImageCropperModal`). En modo admin aparece un botón para agregar actividades nuevas y "Editar"/"Eliminar" en cada página.
 - **Ruleta** — una ruleta gira entre las actividades del pasaporte (todas o solo las pendientes de sellar) y elige al azar el próximo plan.
 
 ## Modo administrador
@@ -32,21 +32,12 @@ Estructura principal:
 src/
   context/AppContext.tsx   estado global + persistencia (AsyncStorage)
   screens/                 Cuenta, Pasaporte, Ruleta
-  components/              StarRating, PassportBook/PassportPage (libreta con efecto revista),
+  components/              StarRating, PassportBook/PassportPage (libreta deslizable),
                             StampModal, ActivityFormModal, ImageCropperModal (recorte de fotos),
                             Wheel (ruleta con react-native-svg)
   theme.ts                 colores y estilos compartidos
   types.ts                 tipos (Activity, Stamp, Profile)
 ```
-
-### Sobre `patches/`
-
-El efecto de página tipo revista usa `react-native-page-flipper`, una librería que en su versión
-publicada depende de `react-native-linear-gradient` (un módulo nativo que no funciona en Expo Go)
-y de una API de `react-native-reanimated` que ya no existe en la versión 4. La carpeta `patches/`
-(aplicada automáticamente por `postinstall` vía `patch-package` en cada `npm install`) la adapta
-para que use `expo-linear-gradient` y la API moderna de gestos, sin salir de Expo Go. No hace falta
-tocar nada — simplemente corré `npm install` como siempre y el patch se aplica solo.
 
 ## Producción (EAS Build)
 

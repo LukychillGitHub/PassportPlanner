@@ -2,12 +2,19 @@ import React, {
   forwardRef,
   useCallback,
   useImperativeHandle,
-  useMemo,
   useRef,
   useState,
 } from 'react';
-import { LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import PageFlipper, { PageFlipperInstance } from 'react-native-page-flipper';
+import {
+  FlatList,
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { Activity, Stamp } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { PassportPage } from './PassportPage';
@@ -33,64 +40,65 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
   const [frameWidth, setFrameWidth] = useState(0);
   const [frameHeight, setFrameHeight] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const flipperRef = useRef<PageFlipperInstance>(null);
-  const readyRef = useRef(false);
+  const listRef = useRef<FlatList<Activity>>(null);
   const pendingIndexRef = useRef<number | null>(null);
-
-  const data = useMemo(() => activities.map((a) => a.id), [activities]);
 
   function handleLayout(event: LayoutChangeEvent) {
     setFrameWidth(event.nativeEvent.layout.width);
     setFrameHeight(event.nativeEvent.layout.height);
   }
 
-  const goToIndex = useCallback((index: number) => {
-    const clamped = Math.max(0, Math.min(index, activities.length - 1));
-    // react-native-page-flipper confirma su lista interna de páginas de forma
-    // asíncrona (vía setState) después de inicializarse o de recibir nuevas
-    // activities. Si pedimos goToPage() antes de que ese estado se confirme,
-    // la librería todavía ve su lista de páginas vacía y descarta el salto
-    // ("invalid page"). Este pequeño margen le da tiempo a confirmarse.
-    setTimeout(() => {
-      flipperRef.current?.goToPage(clamped);
-    }, 50);
-    setCurrentIndex(clamped);
-  }, [activities.length]);
-
-  const handleInitialized = useCallback(() => {
-    readyRef.current = true;
-    if (pendingIndexRef.current !== null) {
-      const target = pendingIndexRef.current;
-      pendingIndexRef.current = null;
-      goToIndex(target);
-    } else {
-      setCurrentIndex(0);
-    }
-  }, [goToIndex]);
+  const goToIndex = useCallback(
+    (index: number) => {
+      const clamped = Math.max(0, Math.min(index, activities.length - 1));
+      if (frameWidth === 0) {
+        // El FlatList todavía no midió su ancho; guardamos el índice pedido
+        // y lo aplicamos apenas se conozca (ver el useEffect de abajo, vía
+        // el chequeo en cada re-render con onLayout ya disparado).
+        pendingIndexRef.current = clamped;
+        return;
+      }
+      listRef.current?.scrollToIndex({ index: clamped, animated: true });
+      setCurrentIndex(clamped);
+    },
+    [activities.length, frameWidth]
+  );
 
   useImperativeHandle(ref, () => ({
     scrollToIndex(index: number) {
-      if (!readyRef.current) {
-        pendingIndexRef.current = index;
-        return;
-      }
       goToIndex(index);
     },
   }));
 
-  function goToPage(delta: number) {
-    if (delta > 0) {
-      flipperRef.current?.nextPage();
-    } else {
-      flipperRef.current?.previousPage();
+  // Si se pidió un salto antes de que el FlatList tuviera su ancho medido,
+  // lo aplicamos apenas frameWidth deja de ser 0.
+  React.useEffect(() => {
+    if (frameWidth > 0 && pendingIndexRef.current !== null) {
+      const target = pendingIndexRef.current;
+      pendingIndexRef.current = null;
+      goToIndex(target);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frameWidth]);
+
+  function goToPage(delta: number) {
+    goToIndex(currentIndex + delta);
   }
 
-  const renderPage = useCallback(
-    (activityId: string) => {
-      const activity = activities.find((a) => a.id === activityId);
-      if (!activity) return <View style={styles.emptyPage} />;
-      return (
+  // Se usa tanto durante el arrastre (onScroll, throttled) como al terminarlo
+  // (onMomentumScrollEnd / onScrollEndDrag) para que el contador de página y
+  // los puntitos nunca queden desincronizados, sin importar si el gesto
+  // termina con impulso (fling) o con un arrastre lento y suelto.
+  function handleScrollUpdate(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (frameWidth === 0) return;
+    const index = Math.round(event.nativeEvent.contentOffset.x / frameWidth);
+    const clamped = Math.max(0, Math.min(index, activities.length - 1));
+    setCurrentIndex((prev) => (prev === clamped ? prev : clamped));
+  }
+
+  const renderItem = useCallback(
+    ({ item: activity }: { item: Activity }) => (
+      <View style={{ width: frameWidth, height: frameHeight }}>
         <PassportPage
           activity={activity}
           stamp={getStamp(activity.id)}
@@ -98,9 +106,18 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
           onSealPress={() => onSealPress(activity)}
           onEditPress={() => onEditPress(activity)}
         />
-      );
-    },
-    [activities, getStamp, isAdmin, onSealPress, onEditPress]
+      </View>
+    ),
+    [frameWidth, frameHeight, getStamp, isAdmin, onSealPress, onEditPress]
+  );
+
+  const getItemLayout = useCallback(
+    (_: unknown, index: number) => ({
+      length: frameWidth,
+      offset: frameWidth * index,
+      index,
+    }),
+    [frameWidth]
   );
 
   const showDots = activities.length > 1 && activities.length <= MAX_DOTS;
@@ -109,18 +126,21 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
     <View style={styles.wrapper}>
       <View style={styles.cover} onLayout={handleLayout}>
         {frameWidth > 0 && frameHeight > 0 && activities.length > 0 && (
-          <PageFlipper
-            ref={flipperRef}
-            data={data}
-            portrait
-            singleImageMode
-            enabled={activities.length > 1}
-            pressable={false}
-            pageSize={{ width: frameWidth, height: frameHeight }}
-            contentContainerStyle={styles.flipperContent}
-            renderPage={renderPage}
-            onFlippedEnd={(index: number) => setCurrentIndex(index)}
-            onInitialized={handleInitialized}
+          <FlatList
+            ref={listRef}
+            data={activities}
+            keyExtractor={(activity) => activity.id}
+            renderItem={renderItem}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            scrollEnabled={activities.length > 1}
+            getItemLayout={getItemLayout}
+            onScroll={handleScrollUpdate}
+            scrollEventThrottle={16}
+            onMomentumScrollEnd={handleScrollUpdate}
+            onScrollEndDrag={handleScrollUpdate}
+            style={styles.list}
           />
         )}
 
@@ -173,10 +193,7 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     overflow: 'hidden',
   },
-  flipperContent: {
-    backgroundColor: colors.card,
-  },
-  emptyPage: {
+  list: {
     flex: 1,
     backgroundColor: colors.card,
   },
