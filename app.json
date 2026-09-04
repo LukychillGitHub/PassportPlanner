@@ -39,6 +39,11 @@
         }
       ],
       "./plugins/withMavenCentralMirror.js"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3ff0c0d6-b181-4962-b3bc-26ae3b279a25"
+      }
+    }
   }
 }
