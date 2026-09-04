@@ -1,10 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEYS = {
-  activities: '@passportplanner/activities',
-  stamps: '@passportplanner/stamps',
-  profile: '@passportplanner/profile',
-  adminPin: '@passportplanner/adminPin',
   reminderEnabled: '@passportplanner/reminderEnabled',
 } as const;
 

@@ -9,6 +9,8 @@ import { AppProvider, useApp } from './src/context/AppContext';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PassportScreen } from './src/screens/PassportScreen';
 import { RouletteScreen } from './src/screens/RouletteScreen';
+import { LoginScreen } from './src/screens/LoginScreen';
+import { PassportSetupScreen } from './src/screens/PassportSetupScreen';
 import { colors, spacing } from './src/theme';
 
 const Tab = createBottomTabNavigator();
@@ -27,7 +29,23 @@ function LoadingSplash() {
 }
 
 function Root() {
-  const { loading } = useApp();
+  const { authLoading, session, passportLoading, passport, loading } = useApp();
+
+  if (authLoading) {
+    return <LoadingSplash />;
+  }
+
+  if (!session) {
+    return <LoginScreen />;
+  }
+
+  if (passportLoading) {
+    return <LoadingSplash />;
+  }
+
+  if (!passport) {
+    return <PassportSetupScreen />;
+  }
 
   if (loading) {
     return <LoadingSplash />;

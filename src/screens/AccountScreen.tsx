@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   Text,
@@ -24,7 +25,18 @@ const REMINDER_HOUR = 18;
 const REMINDER_MINUTE = 0;
 
 export function AccountScreen() {
-  const { profile, updateProfile, isAdmin, loginAdmin, logoutAdmin, changeAdminPin, activities, stamps } = useApp();
+  const {
+    profile,
+    updateProfile,
+    isAdmin,
+    loginAdmin,
+    logoutAdmin,
+    changeAdminPin,
+    activities,
+    stamps,
+    passport,
+    signOut,
+  } = useApp();
   const [name, setName] = useState(profile.name);
   const [bio, setBio] = useState(profile.bio);
   const [photoUri, setPhotoUri] = useState<string | null>(profile.photoUri);
@@ -103,6 +115,24 @@ export function AccountScreen() {
     } else {
       Alert.alert('PIN incorrecto', 'Probá de nuevo.');
     }
+  }
+
+  async function handleShareInvite() {
+    if (!passport) return;
+    try {
+      await Share.share({
+        message: `Sumate a mi pasaporte "${passport.name}" en PassportPlanner. Código de invitación: ${passport.inviteCode}`,
+      });
+    } catch {
+      // el usuario canceló el share sheet, no hace falta avisar
+    }
+  }
+
+  async function handleSignOut() {
+    Alert.alert('Cerrar sesión', '¿Seguro que querés salir de tu cuenta?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Salir', style: 'destructive', onPress: signOut },
+    ]);
   }
 
   async function handlePinChange() {
@@ -188,6 +218,21 @@ export function AccountScreen() {
             <Text style={styles.statLabel}>Actividades</Text>
           </View>
         </View>
+
+        {passport && (
+          <View style={styles.reminderSection}>
+            <Text style={styles.adminTitle}>Pasaporte compartido</Text>
+            <Text style={styles.reminderHint}>
+              Compartí este código con quien quieras sumar a "{passport.name}".
+            </Text>
+            <View style={styles.inviteCodeBox}>
+              <Text style={styles.inviteCodeText}>{passport.inviteCode}</Text>
+            </View>
+            <TouchableOpacity style={styles.outlineButton} onPress={handleShareInvite}>
+              <Text style={styles.outlineButtonText}>Compartir código</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.reminderSection}>
           <View style={styles.reminderRow}>
@@ -279,6 +324,10 @@ export function AccountScreen() {
             </TouchableOpacity>
           )}
         </View>
+
+        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+          <Text style={styles.signOutButtonText}>Cerrar sesión</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <ImageCropperModal
@@ -422,6 +471,42 @@ const styles = StyleSheet.create({
   },
   changePinLink: {
     color: colors.primary,
+    fontWeight: '600',
+  },
+  inviteCodeBox: {
+    marginTop: spacing.md,
+    alignSelf: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 2,
+    borderColor: colors.gold,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  inviteCodeText: {
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: 6,
+    color: colors.ink,
+  },
+  outlineButton: {
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    alignItems: 'center',
+  },
+  outlineButtonText: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  signOutButton: {
+    marginTop: spacing.xl,
+    alignItems: 'center',
+  },
+  signOutButtonText: {
+    color: colors.danger,
     fontWeight: '600',
   },
   pinChangeBox: {

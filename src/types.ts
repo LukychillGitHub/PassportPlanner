@@ -19,3 +19,9 @@ export type Profile = {
   bio: string;
   photoUri: string | null;
 };
+
+export type Passport = {
+  id: string;
+  name: string;
+  inviteCode: string;
+};
