@@ -118,9 +118,9 @@ export function PassportScreen({ route, navigation }: Props) {
     ]);
   }
 
-  async function handleStampConfirm(rating: number, note: string, photoUri: string | null) {
+  async function handleStampConfirm(rating: number, note: string, photoUris: string[]) {
     if (!stampTarget) return;
-    await stampActivity(stampTarget.id, rating, note, photoUri);
+    await stampActivity(stampTarget.id, rating, note, photoUris);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     setStampTarget(null);
   }

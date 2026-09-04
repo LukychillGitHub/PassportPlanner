@@ -33,7 +33,7 @@ type StampRow = {
   activity_id: string;
   rating: number;
   note: string;
-  photo_url: string | null;
+  photo_urls: string[] | null;
   created_at: string;
 };
 
@@ -52,7 +52,7 @@ function toStamp(row: StampRow): Stamp {
     activityId: row.activity_id,
     rating: row.rating,
     note: row.note,
-    photoUri: row.photo_url,
+    photoUris: row.photo_urls ?? [],
     stampedAt: new Date(row.created_at).getTime(),
   };
 }
@@ -84,7 +84,7 @@ type AppContextValue = {
   addActivity: (data: Omit<Activity, 'id' | 'createdAt'>) => Promise<void>;
   updateActivity: (id: string, data: Omit<Activity, 'id' | 'createdAt'>) => Promise<void>;
   deleteActivity: (id: string) => Promise<void>;
-  stampActivity: (activityId: string, rating: number, note: string, photoUri: string | null) => Promise<void>;
+  stampActivity: (activityId: string, rating: number, note: string, photoUris: string[]) => Promise<void>;
   removeStamp: (activityId: string) => Promise<void>;
   getStamp: (activityId: string) => Stamp | undefined;
   updateProfile: (data: Profile) => Promise<void>;
@@ -343,7 +343,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const stampActivity = useCallback(
-    async (activityId: string, rating: number, note: string, photoUri: string | null) => {
+    async (activityId: string, rating: number, note: string, photoUris: string[]) => {
       if (!passport || !userId) return;
       await supabase.from('stamps').upsert(
         {
@@ -352,7 +352,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           sealed_by: userId,
           rating,
           note,
-          photo_url: photoUri,
+          photo_urls: photoUris,
         },
         { onConflict: 'activity_id' }
       );

@@ -1,5 +1,15 @@
-import React from 'react';
-import { Image, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import {
+  Image,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import * as Sharing from 'expo-sharing';
 import { Activity, Stamp } from '../types';
 import { colors, radius, spacing } from '../theme';
@@ -15,14 +25,23 @@ type Props = {
 
 export function PassportPage({ activity, stamp, isAdmin, onSealPress, onEditPress }: Props) {
   const isStamped = !!stamp;
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const [photoAreaWidth, setPhotoAreaWidth] = useState(0);
+
+  function handlePhotoScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (photoAreaWidth === 0) return;
+    const index = Math.round(event.nativeEvent.contentOffset.x / photoAreaWidth);
+    setPhotoIndex(index);
+  }
 
   async function handleShare() {
     if (!stamp) return;
     const stars = '★'.repeat(stamp.rating) + '☆'.repeat(5 - stamp.rating);
     const message = `${activity.title}\n${stars}${stamp.note ? `\n"${stamp.note}"` : ''}\n\n— Mi Pasaporte de Actividades`;
     try {
-      if (stamp.photoUri && (await Sharing.isAvailableAsync())) {
-        await Sharing.shareAsync(stamp.photoUri, { dialogTitle: activity.title });
+      const firstPhoto = stamp.photoUris[0];
+      if (firstPhoto && (await Sharing.isAvailableAsync())) {
+        await Sharing.shareAsync(firstPhoto, { dialogTitle: activity.title });
       } else {
         await Share.share({ message });
       }
@@ -55,12 +74,30 @@ export function PassportPage({ activity, stamp, isAdmin, onSealPress, onEditPres
 
         {isStamped ? (
           <View style={styles.stampBlock}>
-            {!!stamp!.photoUri && (
-              <View style={styles.photoWrap}>
-                <Image source={{ uri: stamp!.photoUri }} style={styles.photo} />
+            {stamp!.photoUris.length > 0 && (
+              <View style={styles.photoWrap} onLayout={(e) => setPhotoAreaWidth(e.nativeEvent.layout.width)}>
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onScroll={handlePhotoScroll}
+                  onMomentumScrollEnd={handlePhotoScroll}
+                  scrollEventThrottle={16}
+                >
+                  {stamp!.photoUris.map((uri) => (
+                    <Image key={uri} source={{ uri }} style={[styles.photo, { width: photoAreaWidth || '100%' }]} />
+                  ))}
+                </ScrollView>
                 <View style={styles.photoStamp}>
                   <Text style={styles.photoStampText}>★</Text>
                 </View>
+                {stamp!.photoUris.length > 1 && (
+                  <View style={styles.photoCountBadge}>
+                    <Text style={styles.photoCountBadgeText}>
+                      {Math.min(photoIndex + 1, stamp!.photoUris.length)} / {stamp!.photoUris.length}
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
 
@@ -201,6 +238,20 @@ const styles = StyleSheet.create({
   photoStampText: {
     color: colors.white,
     fontSize: 16,
+  },
+  photoCountBadge: {
+    position: 'absolute',
+    left: spacing.sm,
+    bottom: spacing.sm,
+    backgroundColor: colors.overlay,
+    borderRadius: radius.round,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+  },
+  photoCountBadgeText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '700',
   },
   stampBadge: {
     alignSelf: 'flex-start',

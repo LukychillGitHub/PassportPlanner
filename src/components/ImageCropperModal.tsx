@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Image,
   Modal,
   PanResponder,
@@ -28,7 +29,7 @@ const FRAME_MAX_WIDTH = 300;
 // Sube la imagen recortada (que vive en un directorio de caché temporal) a
 // Supabase Storage, para que la otra persona del pasaporte compartido
 // también pueda verla, y no se pierda si se limpia la caché del dispositivo.
-async function persistPhoto(uri: string): Promise<string> {
+async function persistPhoto(uri: string): Promise<{ uri: string; uploaded: boolean }> {
   try {
     const response = await fetch(uri);
     const blob = await response.blob();
@@ -38,9 +39,9 @@ async function persistPhoto(uri: string): Promise<string> {
     });
     if (error) throw error;
     const { data } = supabase.storage.from('photos').getPublicUrl(path);
-    return data.publicUrl;
+    return { uri: data.publicUrl, uploaded: true };
   } catch {
-    return uri;
+    return { uri, uploaded: false };
   }
 }
 
@@ -129,7 +130,12 @@ export function ImageCropperModal({ visible, imageUri, aspect, shape = 'rect', o
 
       const originX = Math.min(Math.max(0, cropX), Math.max(0, naturalSize.width - cropWidth));
       const originY = Math.min(Math.max(0, cropY), Math.max(0, naturalSize.height - cropHeight));
+      const finalCropWidth = Math.min(cropWidth, naturalSize.width);
 
+      // Limitamos el ancho final a 1280px: una foto de cámara sin redimensionar
+      // (varios MB) podía tardar tanto en convertirse a blob y subirse que la
+      // subida quedaba colgada o fallaba, tanto para la foto de perfil como
+      // para la del sello.
       const result = await ImageManipulator.manipulateAsync(
         imageUri,
         [
@@ -137,15 +143,22 @@ export function ImageCropperModal({ visible, imageUri, aspect, shape = 'rect', o
             crop: {
               originX,
               originY,
-              width: Math.min(cropWidth, naturalSize.width),
+              width: finalCropWidth,
               height: Math.min(cropHeight, naturalSize.height),
             },
           },
+          { resize: { width: Math.min(1280, Math.round(finalCropWidth)) } },
         ],
-        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
       );
-      const persistedUri = await persistPhoto(result.uri);
-      onConfirm(persistedUri);
+      const persisted = await persistPhoto(result.uri);
+      if (!persisted.uploaded) {
+        Alert.alert(
+          'No se pudo subir la foto',
+          'Se va a mostrar en tu equipo por ahora, pero puede no verse en el otro dispositivo. Revisá tu conexión y probá de nuevo.'
+        );
+      }
+      onConfirm(persisted.uri);
     } finally {
       setSaving(false);
     }

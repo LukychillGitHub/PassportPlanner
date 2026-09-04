@@ -10,7 +10,7 @@ export type Stamp = {
   activityId: string;
   rating: number; // 1 a 5
   note: string;
-  photoUri: string | null;
+  photoUris: string[];
   stampedAt: number;
 };
 

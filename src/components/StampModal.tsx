@@ -18,34 +18,38 @@ import { colors, radius, spacing } from '../theme';
 import { StarRating } from './StarRating';
 import { ImageCropperModal } from './ImageCropperModal';
 
+const MAX_PHOTOS = 6;
+
 type Props = {
   visible: boolean;
   activity: Activity | null;
   existingStamp?: Stamp;
   onClose: () => void;
-  onConfirm: (rating: number, note: string, photoUri: string | null) => void;
+  onConfirm: (rating: number, note: string, photoUris: string[]) => void;
   onRemoveStamp?: () => void;
 };
 
 export function StampModal({ visible, activity, existingStamp, onClose, onConfirm, onRemoveStamp }: Props) {
   const [rating, setRating] = useState(existingStamp?.rating ?? 0);
   const [note, setNote] = useState(existingStamp?.note ?? '');
-  const [photoUri, setPhotoUri] = useState<string | null>(existingStamp?.photoUri ?? null);
+  const [photoUris, setPhotoUris] = useState<string[]>(existingStamp?.photoUris ?? []);
   const [pickedPhotoUri, setPickedPhotoUri] = useState<string | null>(null);
 
   useEffect(() => {
     if (visible) {
       setRating(existingStamp?.rating ?? 0);
       setNote(existingStamp?.note ?? '');
-      setPhotoUri(existingStamp?.photoUri ?? null);
+      setPhotoUris(existingStamp?.photoUris ?? []);
     }
   }, [visible, existingStamp]);
 
   if (!activity) return null;
 
   const canConfirm = rating > 0;
+  const canAddMorePhotos = photoUris.length < MAX_PHOTOS;
 
   async function pickPhoto() {
+    if (!canAddMorePhotos) return;
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert('Permiso necesario', 'Necesitamos acceso a tus fotos para agregar una imagen de la actividad.');
@@ -58,6 +62,10 @@ export function StampModal({ visible, activity, existingStamp, onClose, onConfir
     if (!result.canceled && result.assets?.[0]?.uri) {
       setPickedPhotoUri(result.assets[0].uri);
     }
+  }
+
+  function removePhoto(uri: string) {
+    setPhotoUris((prev) => prev.filter((existing) => existing !== uri));
   }
 
   return (
@@ -77,26 +85,44 @@ export function StampModal({ visible, activity, existingStamp, onClose, onConfir
             <Text style={styles.title}>{activity.title}</Text>
             <Text style={styles.subtitle}>¿Cómo estuvo la experiencia?</Text>
 
-            <TouchableOpacity
-              style={styles.photoPicker}
-              onPress={pickPhoto}
-              accessibilityRole="button"
-              accessibilityLabel={photoUri ? 'Cambiar foto de la actividad' : 'Agregar foto de la actividad'}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.photoRow}
+              contentContainerStyle={styles.photoRowContent}
             >
-              {photoUri ? (
-                <Image source={{ uri: photoUri }} style={styles.photo} />
-              ) : (
-                <View style={[styles.photo, styles.photoPlaceholder]}>
+              {photoUris.map((uri) => (
+                <View key={uri} style={styles.photoThumbWrap}>
+                  <Image source={{ uri }} style={styles.photoThumb} />
+                  <TouchableOpacity
+                    style={styles.photoRemoveBadge}
+                    onPress={() => removePhoto(uri)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Quitar esta foto"
+                  >
+                    <Text style={styles.photoRemoveBadgeText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {canAddMorePhotos && (
+                <TouchableOpacity
+                  style={[styles.photoThumb, styles.photoPlaceholder]}
+                  onPress={pickPhoto}
+                  accessibilityRole="button"
+                  accessibilityLabel="Agregar foto de la actividad"
+                >
                   <Text style={styles.photoPlaceholderIcon}>📷</Text>
-                  <Text style={styles.photoPlaceholderText}>Agregar foto</Text>
-                </View>
+                  <Text style={styles.photoPlaceholderText}>
+                    {photoUris.length === 0 ? 'Agregar foto' : 'Agregar otra'}
+                  </Text>
+                </TouchableOpacity>
               )}
-              {!!photoUri && (
-                <View style={styles.photoEditBadge}>
-                  <Text style={styles.photoEditBadgeText}>Cambiar</Text>
-                </View>
-              )}
-            </TouchableOpacity>
+            </ScrollView>
+            {photoUris.length > 0 && (
+              <Text style={styles.photoCount}>
+                {photoUris.length} de {MAX_PHOTOS} fotos
+              </Text>
+            )}
 
             <View style={styles.starsWrap}>
               <StarRating rating={rating} onChange={setRating} size={34} />
@@ -119,7 +145,7 @@ export function StampModal({ visible, activity, existingStamp, onClose, onConfir
               <TouchableOpacity
                 style={[styles.primaryButton, !canConfirm && styles.disabledButton]}
                 disabled={!canConfirm}
-                onPress={() => onConfirm(rating, note.trim(), photoUri)}
+                onPress={() => onConfirm(rating, note.trim(), photoUris)}
               >
                 <Text style={styles.primaryButtonText}>
                   {existingStamp ? 'Actualizar sello' : 'Sellar pasaporte'}
@@ -144,7 +170,7 @@ export function StampModal({ visible, activity, existingStamp, onClose, onConfir
       shape="rect"
       onCancel={() => setPickedPhotoUri(null)}
       onConfirm={(croppedUri) => {
-        setPhotoUri(croppedUri);
+        setPhotoUris((prev) => [...prev, croppedUri]);
         setPickedPhotoUri(null);
       }}
     />
@@ -190,16 +216,19 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     textAlign: 'center',
   },
-  photoPicker: {
+  photoRow: {
     width: '100%',
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
   },
-  photo: {
-    width: '100%',
-    // Mismo aspect ratio que el recorte (aspect={4/3} más abajo) y que el
-    // sello final en PassportPage, para que el encuadre se vea igual en
-    // todo el flujo.
-    aspectRatio: 4 / 3,
+  photoRowContent: {
+    gap: spacing.sm,
+  },
+  photoThumbWrap: {
+    position: 'relative',
+  },
+  photoThumb: {
+    width: 96,
+    height: 96,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.cardBorder,
@@ -211,24 +240,36 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
   },
   photoPlaceholderIcon: {
-    fontSize: 28,
-    marginBottom: spacing.xs,
+    fontSize: 22,
+    marginBottom: 2,
   },
   photoPlaceholderText: {
     color: colors.inkMuted,
     fontWeight: '600',
-    fontSize: 13,
+    fontSize: 11,
+    textAlign: 'center',
+    paddingHorizontal: 4,
   },
-  photoEditBadge: {
+  photoCount: {
+    alignSelf: 'flex-start',
+    color: colors.inkMuted,
+    fontSize: 12,
+    marginBottom: spacing.md,
+  },
+  photoRemoveBadge: {
     position: 'absolute',
-    right: spacing.sm,
-    bottom: spacing.sm,
-    backgroundColor: colors.overlay,
-    borderRadius: radius.round,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.card,
   },
-  photoEditBadgeText: {
+  photoRemoveBadgeText: {
     color: colors.white,
     fontSize: 12,
     fontWeight: '700',
