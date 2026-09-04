@@ -70,7 +70,10 @@ export function StampModal({ visible, activity, existingStamp, onClose, onConfir
 
   return (
     <>
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+    {/* Se oculta mientras el recortador está abierto: dos <Modal> nativos
+        apilados al mismo tiempo hacen que iOS a veces no muestre el segundo
+        (se abría la fototeca pero el recortador nunca aparecía). */}
+    <Modal visible={visible && !pickedPhotoUri} animationType="fade" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
