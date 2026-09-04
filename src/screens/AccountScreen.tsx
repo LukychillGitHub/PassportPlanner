@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import { useApp } from '../context/AppContext';
@@ -155,6 +156,7 @@ export function AccountScreen() {
   const totalActivities = activities.length;
 
   return (
+    <SafeAreaView style={styles.flex} edges={['top']}>
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -342,6 +344,7 @@ export function AccountScreen() {
         }}
       />
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

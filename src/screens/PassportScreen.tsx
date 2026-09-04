@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '../context/AppContext';
@@ -131,7 +132,7 @@ export function PassportScreen({ route, navigation }: Props) {
   }
 
   return (
-    <View style={styles.flex}>
+    <SafeAreaView style={styles.flex} edges={['top']}>
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Mi pasaporte</Text>
@@ -219,7 +220,7 @@ export function PassportScreen({ route, navigation }: Props) {
         onSubmit={handleFormSubmit}
         onDelete={editingActivity ? handleDeleteActivity : undefined}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

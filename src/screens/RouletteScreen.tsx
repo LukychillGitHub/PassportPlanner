@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '../context/AppContext';
@@ -40,7 +41,7 @@ export function RouletteScreen() {
   }
 
   return (
-    <View style={styles.flex}>
+    <SafeAreaView style={styles.flex} edges={['top']}>
       <Text style={styles.header}>Ruleta de planes</Text>
       <Text style={styles.subtitle}>Dejá que el azar elija tu próxima actividad</Text>
 
@@ -103,7 +104,7 @@ export function RouletteScreen() {
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
