@@ -230,7 +230,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg + spacing.sm,
     paddingBottom: spacing.sm,
   },
   headerTitle: {

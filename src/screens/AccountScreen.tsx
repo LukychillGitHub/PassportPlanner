@@ -351,7 +351,8 @@ export function AccountScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   container: {
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg + spacing.sm,
     paddingBottom: spacing.xl * 2,
   },
   header: {

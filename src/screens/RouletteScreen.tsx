@@ -109,7 +109,13 @@ export function RouletteScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.background, padding: spacing.lg },
+  flex: {
+    flex: 1,
+    backgroundColor: colors.background,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg + spacing.sm,
+    paddingBottom: spacing.lg,
+  },
   header: {
     fontSize: 26,
     fontWeight: '800',
