@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEYS = {
   reminderEnabled: '@passportplanner/reminderEnabled',
+  onboardingSeen: '@passportplanner/onboardingSeen',
 } as const;
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {

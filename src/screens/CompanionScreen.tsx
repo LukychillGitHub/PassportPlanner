@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '../context/AppContext';
@@ -9,7 +9,7 @@ import { StarRating } from '../components/StarRating';
 import { CompanionRatingModal } from '../components/CompanionRatingModal';
 
 export function CompanionScreen() {
-  const { session, companions, getCompanionRating, rateCompanion } = useApp();
+  const { session, companions, getCompanionRating, rateCompanion, isLeader, removeMember } = useApp();
   const [ratingTarget, setRatingTarget] = useState<Companion | null>(null);
   const myUserId = session?.user?.id;
 
@@ -18,6 +18,26 @@ export function CompanionScreen() {
     await rateCompanion(ratingTarget.userId, rating, note);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     setRatingTarget(null);
+  }
+
+  function handleRemoveMember(companion: Companion) {
+    Alert.alert(
+      'Sacar del pasaporte',
+      `¿Seguro que querés sacar a ${companion.name || 'esta persona'} del pasaporte? Va a perder el acceso a las actividades y sellos compartidos.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sacar',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await removeMember(companion.userId);
+            if (!result.ok) {
+              Alert.alert('No se pudo sacar', result.error ?? 'Probá de nuevo.');
+            }
+          },
+        },
+      ]
+    );
   }
 
   return (
@@ -56,6 +76,15 @@ export function CompanionScreen() {
                     <Text style={styles.profileName}>{companion.name || 'Sin nombre'}</Text>
                     {!!companion.bio && <Text style={styles.profileBio}>{companion.bio}</Text>}
                   </View>
+                  {isLeader && (
+                    <TouchableOpacity
+                      onPress={() => handleRemoveMember(companion)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Sacar a ${companion.name || 'esta persona'} del pasaporte`}
+                    >
+                      <Text style={styles.removeLink}>Sacar</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
 
                 <View style={styles.ratingBlock}>
@@ -182,6 +211,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.inkMuted,
     marginTop: 2,
+  },
+  removeLink: {
+    color: colors.danger,
+    fontWeight: '600',
+    fontSize: 12,
+    textDecorationLine: 'underline',
   },
   ratingBlock: {
     borderTopWidth: 1,

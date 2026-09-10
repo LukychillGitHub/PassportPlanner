@@ -24,6 +24,7 @@ export type Passport = {
   id: string;
   name: string;
   inviteCode: string;
+  createdBy: string;
 };
 
 export type Companion = {

@@ -7,6 +7,8 @@ import React, {
   useState,
 } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import Constants from 'expo-constants';
+import * as Notifications from 'expo-notifications';
 import { supabase } from '../lib/supabase';
 import { Activity, Companion, CompanionRating, Passport, Profile, Stamp } from '../types';
 
@@ -112,6 +114,8 @@ type AppContextValue = {
   companionRatings: CompanionRating[];
   rateCompanion: (rateeId: string, rating: number, note: string) => Promise<void>;
   getCompanionRating: (raterId: string, rateeId: string) => CompanionRating | undefined;
+  isLeader: boolean;
+  removeMember: (memberUserId: string) => Promise<ActionResult>;
 
   addActivity: (data: Omit<Activity, 'id' | 'createdAt'>) => Promise<void>;
   updateActivity: (id: string, data: Omit<Activity, 'id' | 'createdAt'>) => Promise<void>;
@@ -196,12 +200,67 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCompanionRatings([]);
   }, []);
 
+  // --- Notificaciones push: avisarle al otro miembro del pasaporte cuando pasa algo ---
+  const registerPushToken = useCallback(async (uid: string) => {
+    try {
+      const permission = await Notifications.getPermissionsAsync();
+      let status = permission.status;
+      if (status !== 'granted') {
+        status = (await Notifications.requestPermissionsAsync()).status;
+      }
+      if (status !== 'granted') return;
+
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+      const { data: token } = await Notifications.getExpoPushTokenAsync(
+        projectId ? { projectId } : undefined
+      );
+      await supabase
+        .from('push_tokens')
+        .upsert({ user_id: uid, token, updated_at: new Date().toISOString() });
+    } catch {
+      // Sin permiso, sin projectId (puede pasar en Expo Go) o sin conexión:
+      // no es bloqueante, simplemente no se registra el token esta vez.
+    }
+  }, []);
+
+  const notifyOthers = useCallback(
+    async (passportId: string, excludeUserId: string, title: string, body: string) => {
+      try {
+        const { data: memberRows } = await supabase
+          .from('passport_members')
+          .select('user_id')
+          .eq('passport_id', passportId);
+        const targetIds = ((memberRows as { user_id: string }[] | null) ?? [])
+          .map((r) => r.user_id)
+          .filter((id) => id !== excludeUserId);
+        if (targetIds.length === 0) return;
+
+        const { data: tokenRows } = await supabase
+          .from('push_tokens')
+          .select('token')
+          .in('user_id', targetIds);
+        const tokens = ((tokenRows as { token: string }[] | null) ?? []).map((r) => r.token);
+        if (tokens.length === 0) return;
+
+        await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(tokens.map((to) => ({ to, title, body, sound: 'default' }))),
+        });
+      } catch {
+        // Si falla el envío del push no es crítico: la sincronización en vivo
+        // sigue funcionando igual cuando la otra persona abre la app.
+      }
+    },
+    []
+  );
+
   // --- Pasaporte: se busca apenas hay sesión ---
   const loadPassport = useCallback(async (uid: string) => {
     setPassportLoading(true);
     const { data, error } = await supabase
       .from('passport_members')
-      .select('passport:passports(id, name, invite_code, admin_pin)')
+      .select('passport:passports(id, name, invite_code, admin_pin, created_by)')
       .eq('user_id', uid)
       .limit(1)
       .maybeSingle();
@@ -212,8 +271,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         name: string;
         invite_code: string;
         admin_pin: string;
+        created_by: string;
       };
-      setPassport({ id: row.id, name: row.name, inviteCode: row.invite_code });
+      setPassport({ id: row.id, name: row.name, inviteCode: row.invite_code, createdBy: row.created_by });
       setAdminPin(row.admin_pin);
     } else {
       setPassport(null);
@@ -228,6 +288,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setPassport(null);
     }
   }, [userId, loadPassport]);
+
+  useEffect(() => {
+    if (userId && passport) {
+      registerPushToken(userId);
+    }
+  }, [userId, passport, registerPushToken]);
 
   const createPassport = useCallback(
     async (name: string): Promise<ActionResult> => {
@@ -245,7 +311,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .insert({ passport_id: data.id, user_id: userId });
       if (memberError) return { ok: false, error: memberError.message };
 
-      setPassport({ id: data.id, name: data.name, inviteCode: data.invite_code });
+      setPassport({ id: data.id, name: data.name, inviteCode: data.invite_code, createdBy: data.created_by });
       setAdminPin(data.admin_pin);
       return { ok: true };
     },
@@ -258,7 +324,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const normalized = inviteCode.trim().toUpperCase();
       const { data, error } = await supabase
         .from('passports')
-        .select('id, name, invite_code, admin_pin')
+        .select('id, name, invite_code, admin_pin, created_by')
         .eq('invite_code', normalized)
         .maybeSingle();
       if (error || !data) {
@@ -272,11 +338,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, error: memberError.message };
       }
 
-      setPassport({ id: data.id, name: data.name, inviteCode: data.invite_code });
+      setPassport({ id: data.id, name: data.name, inviteCode: data.invite_code, createdBy: data.created_by });
       setAdminPin(data.admin_pin);
+      await notifyOthers(data.id, userId, '¡Alguien se unió a tu pasaporte!', 'Ahora pueden compartir actividades juntos.');
       return { ok: true };
     },
-    [userId]
+    [userId, notifyOthers]
   );
 
   // --- Actividades y sellos del pasaporte actual, con sincronización en vivo ---
@@ -361,7 +428,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'passport_members', filter: `passport_id=eq.${passport.id}` },
+        { event: 'DELETE', schema: 'public', table: 'passport_members', filter: `passport_id=eq.${passport.id}` },
+        (payload) => {
+          // Si la fila borrada es la mia, el lider me saco del pasaporte:
+          // vuelvo a cargar mi membresia (que ahora no va a existir) en vez
+          // de solo refrescar la lista de companeros.
+          if (payload.old && (payload.old as { user_id?: string }).user_id === userId && userId) {
+            loadPassport(userId);
+          } else {
+            refetchCompanions(passport.id);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'passport_members', filter: `passport_id=eq.${passport.id}` },
         () => refetchCompanions(passport.id)
       )
       .subscribe();
@@ -370,7 +451,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [passport, refetchData, refetchCompanions]);
+  }, [passport, refetchData, refetchCompanions, userId, loadPassport]);
 
   // --- Perfil ---
   useEffect(() => {
@@ -439,8 +520,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         { onConflict: 'activity_id' }
       );
       await refetchData(passport.id);
+      const activityTitle = activities.find((a) => a.id === activityId)?.title;
+      await notifyOthers(
+        passport.id,
+        userId,
+        '¡Nueva actividad sellada!',
+        activityTitle ? `Sellaron "${activityTitle}" en el pasaporte.` : 'Sellaron una actividad en el pasaporte.'
+      );
     },
-    [passport, userId, refetchData]
+    [passport, userId, refetchData, activities, notifyOthers]
   );
 
   const removeStamp = useCallback(
@@ -473,14 +561,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         { onConflict: 'passport_id,rater_id,ratee_id' }
       );
       await refetchCompanions(passport.id);
+      await notifyOthers(
+        passport.id,
+        userId,
+        'Te calificaron como compañero',
+        'Andá a la pestaña Compañero para ver cuántas estrellas te pusieron.'
+      );
     },
-    [passport, userId, refetchCompanions]
+    [passport, userId, refetchCompanions, notifyOthers]
   );
 
   const getCompanionRating = useCallback(
     (raterId: string, rateeId: string) =>
       companionRatings.find((r) => r.raterId === raterId && r.rateeId === rateeId),
     [companionRatings]
+  );
+
+  const isLeader = !!(passport && userId && passport.createdBy === userId);
+
+  const removeMember = useCallback(
+    async (memberUserId: string): Promise<ActionResult> => {
+      if (!passport) return { ok: false, error: 'No hay un pasaporte activo.' };
+      const { error } = await supabase
+        .from('passport_members')
+        .delete()
+        .eq('passport_id', passport.id)
+        .eq('user_id', memberUserId);
+      if (error) return { ok: false, error: error.message };
+      await refetchCompanions(passport.id);
+      return { ok: true };
+    },
+    [passport, refetchCompanions]
   );
 
   // --- Modo administrador (PIN del pasaporte) ---
@@ -530,6 +641,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       companionRatings,
       rateCompanion,
       getCompanionRating,
+      isLeader,
+      removeMember,
       addActivity,
       updateActivity,
       deleteActivity,
@@ -562,6 +675,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       companionRatings,
       rateCompanion,
       getCompanionRating,
+      isLeader,
+      removeMember,
       addActivity,
       updateActivity,
       deleteActivity,
