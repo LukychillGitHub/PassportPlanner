@@ -25,3 +25,18 @@ export type Passport = {
   name: string;
   inviteCode: string;
 };
+
+export type Companion = {
+  userId: string;
+  name: string;
+  bio: string;
+  photoUri: string | null;
+};
+
+export type CompanionRating = {
+  raterId: string;
+  rateeId: string;
+  rating: number; // 1 a 5
+  note: string;
+  updatedAt: number;
+};

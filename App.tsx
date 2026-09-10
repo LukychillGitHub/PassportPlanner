@@ -9,6 +9,7 @@ import { AppProvider, useApp } from './src/context/AppContext';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { PassportScreen } from './src/screens/PassportScreen';
 import { RouletteScreen } from './src/screens/RouletteScreen';
+import { CompanionScreen } from './src/screens/CompanionScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { PassportSetupScreen } from './src/screens/PassportSetupScreen';
 import { colors, spacing } from './src/theme';
@@ -84,6 +85,13 @@ function Root() {
           component={RouletteScreen}
           options={{
             tabBarIcon: ({ focused }) => <TabIcon emoji="🎡" focused={focused} />,
+          }}
+        />
+        <Tab.Screen
+          name="Compañero"
+          component={CompanionScreen}
+          options={{
+            tabBarIcon: ({ focused }) => <TabIcon emoji="🤝" focused={focused} />,
           }}
         />
       </Tab.Navigator>

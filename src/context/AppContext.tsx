@@ -8,7 +8,7 @@ import React, {
 } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { Activity, Passport, Profile, Stamp } from '../types';
+import { Activity, Companion, CompanionRating, Passport, Profile, Stamp } from '../types';
 
 const DEFAULT_PIN = '1234';
 const INVITE_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sin caracteres ambiguos (O/0, I/1)
@@ -57,6 +57,31 @@ function toStamp(row: StampRow): Stamp {
   };
 }
 
+type ProfileRow = {
+  id: string;
+  name: string;
+  bio: string;
+  photo_url: string | null;
+};
+
+type CompanionRatingRow = {
+  rater_id: string;
+  ratee_id: string;
+  rating: number;
+  note: string;
+  updated_at: string;
+};
+
+function toCompanionRating(row: CompanionRatingRow): CompanionRating {
+  return {
+    raterId: row.rater_id,
+    rateeId: row.ratee_id,
+    rating: row.rating,
+    note: row.note,
+    updatedAt: new Date(row.updated_at).getTime(),
+  };
+}
+
 type ActionResult = { ok: boolean; error?: string };
 
 type AppContextValue = {
@@ -81,6 +106,13 @@ type AppContextValue = {
   stamps: Stamp[];
   profile: Profile;
   isAdmin: boolean;
+
+  // Compañero: otros miembros del pasaporte y las calificaciones mutuas
+  companions: Companion[];
+  companionRatings: CompanionRating[];
+  rateCompanion: (rateeId: string, rating: number, note: string) => Promise<void>;
+  getCompanionRating: (raterId: string, rateeId: string) => CompanionRating | undefined;
+
   addActivity: (data: Omit<Activity, 'id' | 'createdAt'>) => Promise<void>;
   updateActivity: (id: string, data: Omit<Activity, 'id' | 'createdAt'>) => Promise<void>;
   deleteActivity: (id: string) => Promise<void>;
@@ -109,6 +141,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [stamps, setStamps] = useState<Stamp[]>([]);
   const [profile, setProfile] = useState<Profile>({ name: '', bio: '', photoUri: null });
   const [dataLoading, setDataLoading] = useState(false);
+  const [companions, setCompanions] = useState<Companion[]>([]);
+  const [companionRatings, setCompanionRatings] = useState<CompanionRating[]>([]);
 
   const userId = session?.user?.id;
 
@@ -158,6 +192,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActivities([]);
     setStamps([]);
     setProfile({ name: '', bio: '', photoUri: null });
+    setCompanions([]);
+    setCompanionRatings([]);
   }, []);
 
   // --- Pasaporte: se busca apenas hay sesión ---
@@ -244,29 +280,65 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   // --- Actividades y sellos del pasaporte actual, con sincronización en vivo ---
-  const refetchData = useCallback(async (passportId: string) => {
-    const [{ data: activityRows }, { data: stampRows }] = await Promise.all([
-      supabase
-        .from('activities')
-        .select('*')
-        .eq('passport_id', passportId)
-        .order('created_at', { ascending: false }),
-      supabase.from('stamps').select('*').eq('passport_id', passportId),
-    ]);
-    setActivities(((activityRows as ActivityRow[]) ?? []).map(toActivity));
-    setStamps(((stampRows as StampRow[]) ?? []).map(toStamp));
-  }, []);
+  const refetchData = useCallback(
+    async (passportId: string) => {
+      const [{ data: activityRows }, { data: stampRows }] = await Promise.all([
+        supabase
+          .from('activities')
+          .select('*')
+          .eq('passport_id', passportId)
+          .order('created_at', { ascending: false }),
+        supabase.from('stamps').select('*').eq('passport_id', passportId),
+      ]);
+      setActivities(((activityRows as ActivityRow[]) ?? []).map(toActivity));
+      setStamps(((stampRows as StampRow[]) ?? []).map(toStamp));
+    },
+    []
+  );
+
+  // --- Otros miembros del pasaporte ("compañero") y las calificaciones mutuas ---
+  const refetchCompanions = useCallback(
+    async (passportId: string) => {
+      const { data: memberRows } = await supabase
+        .from('passport_members')
+        .select('user_id')
+        .eq('passport_id', passportId);
+      const otherIds = ((memberRows as { user_id: string }[] | null) ?? [])
+        .map((r) => r.user_id)
+        .filter((id) => id !== userId);
+
+      const [{ data: profileRows }, { data: ratingRows }] = await Promise.all([
+        otherIds.length > 0
+          ? supabase.from('profiles').select('*').in('id', otherIds)
+          : Promise.resolve({ data: [] as ProfileRow[] }),
+        supabase.from('companion_ratings').select('*').eq('passport_id', passportId),
+      ]);
+
+      setCompanions(
+        ((profileRows as ProfileRow[] | null) ?? []).map((row) => ({
+          userId: row.id,
+          name: row.name,
+          bio: row.bio,
+          photoUri: row.photo_url,
+        }))
+      );
+      setCompanionRatings(((ratingRows as CompanionRatingRow[]) ?? []).map(toCompanionRating));
+    },
+    [userId]
+  );
 
   useEffect(() => {
     if (!passport) {
       setActivities([]);
       setStamps([]);
+      setCompanions([]);
+      setCompanionRatings([]);
       return;
     }
     let cancelled = false;
     setDataLoading(true);
 
-    refetchData(passport.id).finally(() => {
+    Promise.all([refetchData(passport.id), refetchCompanions(passport.id)]).finally(() => {
       if (!cancelled) setDataLoading(false);
     });
 
@@ -282,13 +354,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'stamps', filter: `passport_id=eq.${passport.id}` },
         () => refetchData(passport.id)
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'companion_ratings', filter: `passport_id=eq.${passport.id}` },
+        () => refetchCompanions(passport.id)
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'passport_members', filter: `passport_id=eq.${passport.id}` },
+        () => refetchCompanions(passport.id)
+      )
       .subscribe();
 
     return () => {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [passport, refetchData]);
+  }, [passport, refetchData, refetchCompanions]);
 
   // --- Perfil ---
   useEffect(() => {
@@ -375,6 +457,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [stamps]
   );
 
+  // --- Calificaciones de compañero ---
+  const rateCompanion = useCallback(
+    async (rateeId: string, rating: number, note: string) => {
+      if (!passport || !userId) return;
+      await supabase.from('companion_ratings').upsert(
+        {
+          passport_id: passport.id,
+          rater_id: userId,
+          ratee_id: rateeId,
+          rating,
+          note,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'passport_id,rater_id,ratee_id' }
+      );
+      await refetchCompanions(passport.id);
+    },
+    [passport, userId, refetchCompanions]
+  );
+
+  const getCompanionRating = useCallback(
+    (raterId: string, rateeId: string) =>
+      companionRatings.find((r) => r.raterId === raterId && r.rateeId === rateeId),
+    [companionRatings]
+  );
+
   // --- Modo administrador (PIN del pasaporte) ---
   const loginAdmin = useCallback(
     async (pin: string) => {
@@ -418,6 +526,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       stamps,
       profile,
       isAdmin,
+      companions,
+      companionRatings,
+      rateCompanion,
+      getCompanionRating,
       addActivity,
       updateActivity,
       deleteActivity,
@@ -446,6 +558,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       stamps,
       profile,
       isAdmin,
+      companions,
+      companionRatings,
+      rateCompanion,
+      getCompanionRating,
       addActivity,
       updateActivity,
       deleteActivity,
