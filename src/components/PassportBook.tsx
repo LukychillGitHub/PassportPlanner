@@ -124,25 +124,32 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.cover} onLayout={handleLayout}>
-        {frameWidth > 0 && frameHeight > 0 && activities.length > 0 && (
-          <FlatList
-            ref={listRef}
-            data={activities}
-            keyExtractor={(activity) => activity.id}
-            renderItem={renderItem}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            scrollEnabled={activities.length > 1}
-            getItemLayout={getItemLayout}
-            onScroll={handleScrollUpdate}
-            scrollEventThrottle={16}
-            onMomentumScrollEnd={handleScrollUpdate}
-            onScrollEndDrag={handleScrollUpdate}
-            style={styles.list}
-          />
-        )}
+      <View style={styles.cover}>
+        {/* Este View, sin padding propio, es lo que mide onLayout — tiene que
+            coincidir exactamente con el viewport real del FlatList. Medir en
+            `cover` (que sí tiene padding) le daba a cada página un ancho más
+            grande que el visible, y el desfasaje se acumulaba en cada
+            página siguiente. */}
+        <View style={styles.listArea} onLayout={handleLayout}>
+          {frameWidth > 0 && frameHeight > 0 && activities.length > 0 && (
+            <FlatList
+              ref={listRef}
+              data={activities}
+              keyExtractor={(activity) => activity.id}
+              renderItem={renderItem}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              scrollEnabled={activities.length > 1}
+              getItemLayout={getItemLayout}
+              onScroll={handleScrollUpdate}
+              scrollEventThrottle={16}
+              onMomentumScrollEnd={handleScrollUpdate}
+              onScrollEndDrag={handleScrollUpdate}
+              style={styles.list}
+            />
+          )}
+        </View>
 
         {currentIndex > 0 && (
           <TouchableOpacity
@@ -192,6 +199,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.sm,
     overflow: 'hidden',
+  },
+  listArea: {
+    flex: 1,
   },
   list: {
     flex: 1,
