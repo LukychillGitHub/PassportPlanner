@@ -28,8 +28,12 @@ type Props = {
 };
 
 const MIN_ZOOM = 1;
-const MAX_ZOOM = 3;
+const MAX_ZOOM = 2;
 const FRAME_MAX_WIDTH = 300;
+// Si el recorte final (en píxeles reales de la foto, no en pantalla) queda
+// más angosto que esto, se va a ver notoriamente pixelado al mostrarse a
+// tamaño completo — avisamos para la próxima vez.
+const LOW_RES_WARNING_WIDTH = 500;
 
 // Sube la imagen recortada (que vive en un directorio de caché temporal) a
 // Supabase Storage, para que la otra persona del pasaporte compartido
@@ -169,6 +173,11 @@ export function ImageCropperModal({
         Alert.alert(
           'No se pudo subir la foto',
           'Se va a mostrar en tu equipo por ahora, pero puede no verse en el otro dispositivo. Revisá tu conexión y probá de nuevo.'
+        );
+      } else if (finalCropWidth < LOW_RES_WARNING_WIDTH) {
+        Alert.alert(
+          'La foto puede verse pixelada',
+          'Acercaste mucho el zoom al recortar, así que se usó una porción chica de la foto original. La próxima vez, probá con menos zoom para que se vea más nítida.'
         );
       }
       onConfirm(persisted.uri);
