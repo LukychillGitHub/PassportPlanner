@@ -37,6 +37,8 @@ export function AccountScreen() {
     stamps,
     passport,
     signOut,
+    myPassports,
+    switchPassport,
   } = useApp();
   const [name, setName] = useState(profile.name);
   const [bio, setBio] = useState(profile.bio);
@@ -232,6 +234,11 @@ export function AccountScreen() {
             </View>
             <TouchableOpacity style={styles.outlineButton} onPress={handleShareInvite}>
               <Text style={styles.outlineButtonText}>Compartir código</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.switchPassportButton} onPress={switchPassport}>
+              <Text style={styles.switchPassportButtonText}>
+                {myPassports.length > 1 ? 'Cambiar de pasaporte' : 'Crear o unirme a otro pasaporte'}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -504,6 +511,15 @@ const styles = StyleSheet.create({
   outlineButtonText: {
     color: colors.primary,
     fontWeight: '700',
+  },
+  switchPassportButton: {
+    marginTop: spacing.md,
+    alignItems: 'center',
+  },
+  switchPassportButtonText: {
+    color: colors.primary,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   signOutButton: {
     marginTop: spacing.xl,

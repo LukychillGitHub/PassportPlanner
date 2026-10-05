@@ -10,6 +10,7 @@ import type { Session } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { supabase } from '../lib/supabase';
+import { storage } from '../storage';
 import { Activity, Companion, CompanionRating, Passport, Profile, Stamp } from '../types';
 
 const DEFAULT_PIN = '1234';
@@ -84,6 +85,18 @@ function toCompanionRating(row: CompanionRatingRow): CompanionRating {
   };
 }
 
+type PassportRow = {
+  id: string;
+  name: string;
+  invite_code: string;
+  admin_pin: string;
+  created_by: string;
+};
+
+function toPassport(row: PassportRow): Passport {
+  return { id: row.id, name: row.name, inviteCode: row.invite_code, createdBy: row.created_by };
+}
+
 type ActionResult = { ok: boolean; error?: string };
 
 type AppContextValue = {
@@ -98,9 +111,12 @@ type AppContextValue = {
 
   // Pasaporte compartido
   passport: Passport | null;
+  myPassports: Passport[];
   passportLoading: boolean;
   createPassport: (name: string) => Promise<ActionResult>;
   joinPassport: (inviteCode: string) => Promise<ActionResult>;
+  selectPassport: (passportId: string) => void;
+  switchPassport: () => void;
 
   // Datos del pasaporte
   loading: boolean;
@@ -137,6 +153,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
 
   const [passport, setPassport] = useState<Passport | null>(null);
+  const [myPassportRows, setMyPassportRows] = useState<PassportRow[]>([]);
   const [passportLoading, setPassportLoading] = useState(false);
   const [adminPin, setAdminPin] = useState(DEFAULT_PIN);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -191,6 +208,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
+    storage.writeJson(storage.keys.lastPassportId, null);
+    setMyPassportRows([]);
     setPassport(null);
     setIsAdmin(false);
     setActivities([]);
@@ -255,30 +274,60 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  // --- Pasaporte: se busca apenas hay sesión ---
-  const loadPassport = useCallback(async (uid: string) => {
-    setPassportLoading(true);
-    const { data, error } = await supabase
-      .from('passport_members')
-      .select('passport:passports(id, name, invite_code, admin_pin, created_by)')
-      .eq('user_id', uid)
-      .limit(1)
-      .maybeSingle();
+  // --- Pasaportes: se buscan todos los del usuario apenas hay sesión ---
+  const enterPassport = useCallback((row: PassportRow) => {
+    setPassport(toPassport(row));
+    setAdminPin(row.admin_pin);
+    setIsAdmin(false);
+    storage.writeJson(storage.keys.lastPassportId, row.id);
+  }, []);
 
-    if (!error && data?.passport) {
-      const row = data.passport as unknown as {
-        id: string;
-        name: string;
-        invite_code: string;
-        admin_pin: string;
-        created_by: string;
-      };
-      setPassport({ id: row.id, name: row.name, inviteCode: row.invite_code, createdBy: row.created_by });
-      setAdminPin(row.admin_pin);
-    } else {
-      setPassport(null);
-    }
-    setPassportLoading(false);
+  const loadPassport = useCallback(
+    async (uid: string) => {
+      setPassportLoading(true);
+      const [{ data, error }, lastId] = await Promise.all([
+        supabase
+          .from('passport_members')
+          .select('joined_at, passport:passports(id, name, invite_code, admin_pin, created_by)')
+          .eq('user_id', uid)
+          .order('joined_at', { ascending: false }),
+        storage.readJson<string | null>(storage.keys.lastPassportId, null),
+      ]);
+
+      const rows = error
+        ? []
+        : ((data ?? []) as unknown as { passport: PassportRow | null }[])
+            .map((m) => m.passport)
+            .filter((p): p is PassportRow => !!p);
+      setMyPassportRows(rows);
+
+      // Se entra directo al último pasaporte usado (o al único que haya); la
+      // pantalla de elegir solo aparece si hay varios y ninguno recordado.
+      const remembered = rows.find((p) => p.id === lastId);
+      const autoEnter = remembered ?? (rows.length === 1 ? rows[0] : undefined);
+      if (autoEnter) {
+        enterPassport(autoEnter);
+      } else {
+        setPassport(null);
+      }
+      setPassportLoading(false);
+    },
+    [enterPassport]
+  );
+
+  const selectPassport = useCallback(
+    (passportId: string) => {
+      const row = myPassportRows.find((p) => p.id === passportId);
+      if (row) enterPassport(row);
+    },
+    [myPassportRows, enterPassport]
+  );
+
+  // Vuelve a la pantalla de elegir pasaporte (sin salir de la cuenta).
+  const switchPassport = useCallback(() => {
+    setPassport(null);
+    setIsAdmin(false);
+    storage.writeJson(storage.keys.lastPassportId, null);
   }, []);
 
   useEffect(() => {
@@ -311,11 +360,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .insert({ passport_id: data.id, user_id: userId });
       if (memberError) return { ok: false, error: memberError.message };
 
-      setPassport({ id: data.id, name: data.name, inviteCode: data.invite_code, createdBy: data.created_by });
-      setAdminPin(data.admin_pin);
+      const row = data as PassportRow;
+      setMyPassportRows((prev) => [row, ...prev]);
+      enterPassport(row);
       return { ok: true };
     },
-    [userId]
+    [userId, enterPassport]
   );
 
   const joinPassport = useCallback(
@@ -338,12 +388,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, error: memberError.message };
       }
 
-      setPassport({ id: data.id, name: data.name, inviteCode: data.invite_code, createdBy: data.created_by });
-      setAdminPin(data.admin_pin);
-      await notifyOthers(data.id, userId, '¡Alguien se unió a tu pasaporte!', 'Ahora pueden compartir actividades juntos.');
+      const row = data as PassportRow;
+      const alreadyMember = myPassportRows.some((p) => p.id === row.id);
+      if (!alreadyMember) setMyPassportRows((prev) => [row, ...prev]);
+      enterPassport(row);
+      if (!alreadyMember) {
+        await notifyOthers(row.id, userId, '¡Alguien se unió a tu pasaporte!', 'Ahora pueden compartir actividades juntos.');
+      }
       return { ok: true };
     },
-    [userId, notifyOthers]
+    [userId, notifyOthers, myPassportRows, enterPassport]
   );
 
   // --- Actividades y sellos del pasaporte actual, con sincronización en vivo ---
@@ -617,6 +671,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [passport]
   );
 
+  const myPassports = useMemo(() => myPassportRows.map(toPassport), [myPassportRows]);
+
   const value = useMemo<AppContextValue>(
     () => ({
       authLoading,
@@ -628,9 +684,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       signOut,
 
       passport,
+      myPassports,
       passportLoading,
       createPassport,
       joinPassport,
+      selectPassport,
+      switchPassport,
 
       loading: dataLoading,
       activities,
@@ -663,9 +722,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       cancelLogin,
       signOut,
       passport,
+      myPassports,
       passportLoading,
       createPassport,
       joinPassport,
+      selectPassport,
+      switchPassport,
       dataLoading,
       activities,
       stamps,

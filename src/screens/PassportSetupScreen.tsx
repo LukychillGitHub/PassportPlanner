@@ -3,6 +3,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,7 +15,8 @@ import { useApp } from '../context/AppContext';
 import { colors, radius, spacing } from '../theme';
 
 export function PassportSetupScreen() {
-  const { createPassport, joinPassport, signOut } = useApp();
+  const { createPassport, joinPassport, signOut, myPassports, selectPassport, session } = useApp();
+  const myUserId = session?.user?.id;
   const [mode, setMode] = useState<'choose' | 'create' | 'join'>('choose');
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -48,9 +50,36 @@ export function PassportSetupScreen() {
 
         {mode === 'choose' && (
           <>
-            <Text style={styles.subtitle}>
-              Creá un pasaporte nuevo para compartir con alguien, o unite a uno con un código de invitación.
-            </Text>
+            {myPassports.length > 0 ? (
+              <>
+                <Text style={styles.subtitle}>Elegí con qué pasaporte querés entrar.</Text>
+                <ScrollView style={styles.passportList} contentContainerStyle={styles.passportListContent}>
+                  {myPassports.map((p) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={styles.passportCard}
+                      onPress={() => selectPassport(p.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Entrar al pasaporte ${p.name}`}
+                    >
+                      <Text style={styles.passportCardIcon}>📘</Text>
+                      <View style={styles.passportCardInfo}>
+                        <Text style={styles.passportCardName}>{p.name}</Text>
+                        <Text style={styles.passportCardMeta}>
+                          {p.createdBy === myUserId ? 'Sos el líder' : 'Miembro'} · Código {p.inviteCode}
+                        </Text>
+                      </View>
+                      <Text style={styles.passportCardArrow}>›</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <Text style={styles.orText}>o también podés</Text>
+              </>
+            ) : (
+              <Text style={styles.subtitle}>
+                Creá un pasaporte nuevo para compartir con alguien, o unite a uno con un código de invitación.
+              </Text>
+            )}
             <TouchableOpacity style={styles.primaryButton} onPress={() => setMode('create')}>
               <Text style={styles.primaryButtonText}>Crear un pasaporte nuevo</Text>
             </TouchableOpacity>
@@ -116,6 +145,51 @@ export function PassportSetupScreen() {
 }
 
 const styles = StyleSheet.create({
+  passportList: {
+    maxHeight: 260,
+    marginBottom: spacing.sm,
+  },
+  passportListContent: {
+    gap: spacing.sm,
+  },
+  passportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 2,
+    borderColor: colors.cardBorder,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  passportCardIcon: {
+    fontSize: 26,
+    marginRight: spacing.md,
+  },
+  passportCardInfo: {
+    flex: 1,
+  },
+  passportCardName: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.ink,
+  },
+  passportCardMeta: {
+    fontSize: 12,
+    color: colors.inkMuted,
+    marginTop: 2,
+  },
+  passportCardArrow: {
+    fontSize: 26,
+    color: colors.primary,
+    fontWeight: '700',
+    marginLeft: spacing.sm,
+  },
+  orText: {
+    textAlign: 'center',
+    color: colors.inkMuted,
+    fontSize: 13,
+    marginVertical: spacing.md,
+  },
   flex: { flex: 1, backgroundColor: colors.background },
   container: {
     flex: 1,
