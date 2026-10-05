@@ -117,6 +117,8 @@ type AppContextValue = {
   joinPassport: (inviteCode: string) => Promise<ActionResult>;
   selectPassport: (passportId: string) => void;
   switchPassport: () => void;
+  passportLoadError: boolean;
+  retryLoadPassport: () => void;
 
   // Datos del pasaporte
   loading: boolean;
@@ -155,6 +157,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [passport, setPassport] = useState<Passport | null>(null);
   const [myPassportRows, setMyPassportRows] = useState<PassportRow[]>([]);
   const [passportLoading, setPassportLoading] = useState(false);
+  const [passportLoadError, setPassportLoadError] = useState(false);
   const [adminPin, setAdminPin] = useState(DEFAULT_PIN);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -285,20 +288,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const loadPassport = useCallback(
     async (uid: string) => {
       setPassportLoading(true);
-      const [{ data, error }, lastId] = await Promise.all([
+      setPassportLoadError(false);
+      const fetchMemberships = () =>
         supabase
           .from('passport_members')
           .select('joined_at, passport:passports(id, name, invite_code, admin_pin, created_by)')
           .eq('user_id', uid)
-          .order('joined_at', { ascending: false }),
+          .order('joined_at', { ascending: false });
+
+      let [{ data, error }, lastId] = await Promise.all([
+        fetchMemberships(),
         storage.readJson<string | null>(storage.keys.lastPassportId, null),
       ]);
+      if (error) {
+        // Lo más común es un token vencido (401): renovamos la sesión y
+        // reintentamos una vez antes de darnos por vencidos.
+        await supabase.auth.refreshSession();
+        ({ data, error } = await fetchMemberships());
+      }
+      if (error) {
+        // No sabemos si tenés pasaportes o no: mejor avisar y dejar reintentar
+        // que mostrarte "creá o unite" como si no tuvieras ninguno.
+        setPassport(null);
+        setPassportLoadError(true);
+        setPassportLoading(false);
+        return;
+      }
 
-      const rows = error
-        ? []
-        : ((data ?? []) as unknown as { passport: PassportRow | null }[])
-            .map((m) => m.passport)
-            .filter((p): p is PassportRow => !!p);
+      const rows = ((data ?? []) as unknown as { passport: PassportRow | null }[])
+        .map((m) => m.passport)
+        .filter((p): p is PassportRow => !!p);
       setMyPassportRows(rows);
 
       // Se entra directo al último pasaporte usado (o al único que haya); la
@@ -673,6 +692,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const myPassports = useMemo(() => myPassportRows.map(toPassport), [myPassportRows]);
 
+  const retryLoadPassport = useCallback(() => {
+    if (userId) loadPassport(userId);
+  }, [userId, loadPassport]);
+
   const value = useMemo<AppContextValue>(
     () => ({
       authLoading,
@@ -690,6 +713,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       joinPassport,
       selectPassport,
       switchPassport,
+      passportLoadError,
+      retryLoadPassport,
 
       loading: dataLoading,
       activities,
@@ -728,6 +753,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       joinPassport,
       selectPassport,
       switchPassport,
+      passportLoadError,
+      retryLoadPassport,
       dataLoading,
       activities,
       stamps,

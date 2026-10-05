@@ -15,7 +15,16 @@ import { useApp } from '../context/AppContext';
 import { colors, radius, spacing } from '../theme';
 
 export function PassportSetupScreen() {
-  const { createPassport, joinPassport, signOut, myPassports, selectPassport, session } = useApp();
+  const {
+    createPassport,
+    joinPassport,
+    signOut,
+    myPassports,
+    selectPassport,
+    session,
+    passportLoadError,
+    retryLoadPassport,
+  } = useApp();
   const myUserId = session?.user?.id;
   const [mode, setMode] = useState<'choose' | 'create' | 'join'>('choose');
   const [name, setName] = useState('');
@@ -48,7 +57,21 @@ export function PassportSetupScreen() {
         <Text style={styles.stampIcon}>📘</Text>
         <Text style={styles.title}>Tu pasaporte compartido</Text>
 
-        {mode === 'choose' && (
+        {mode === 'choose' && passportLoadError && (
+          <>
+            <Text style={styles.subtitle}>
+              No pudimos cargar tus pasaportes. Revisá tu conexión y probá de nuevo.
+            </Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={retryLoadPassport}>
+              <Text style={styles.primaryButtonText}>Reintentar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={signOut}>
+              <Text style={styles.secondaryButtonText}>Salir de la cuenta</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {mode === 'choose' && !passportLoadError && (
           <>
             {myPassports.length > 0 ? (
               <>
