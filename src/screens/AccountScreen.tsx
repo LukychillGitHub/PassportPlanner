@@ -39,7 +39,9 @@ export function AccountScreen() {
     signOut,
     myPassports,
     switchPassport,
+    deleteAccount,
   } = useApp();
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [name, setName] = useState(profile.name);
   const [bio, setBio] = useState(profile.bio);
   const [photoUri, setPhotoUri] = useState<string | null>(profile.photoUri);
@@ -136,6 +138,36 @@ export function AccountScreen() {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Salir', style: 'destructive', onPress: signOut },
     ]);
+  }
+
+  function handleDeleteAccount() {
+    Alert.alert(
+      'Eliminar tu cuenta',
+      'Se borran tu cuenta, tu perfil, tus calificaciones y los pasaportes donde estás solo. Lo que sumaste a un pasaporte compartido queda para la otra persona, sin tu nombre. No se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Continuar',
+          style: 'destructive',
+          onPress: () =>
+            Alert.alert('¿Seguro?', 'Esta es la última confirmación. Tu cuenta se elimina para siempre.', [
+              { text: 'Cancelar', style: 'cancel' },
+              {
+                text: 'Eliminar cuenta',
+                style: 'destructive',
+                onPress: async () => {
+                  setDeletingAccount(true);
+                  const result = await deleteAccount();
+                  setDeletingAccount(false);
+                  if (!result.ok) {
+                    Alert.alert('No se pudo eliminar', result.error ?? 'Probá de nuevo.');
+                  }
+                },
+              },
+            ]),
+        },
+      ]
+    );
   }
 
   async function handlePinChange() {
@@ -337,6 +369,16 @@ export function AccountScreen() {
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
           <Text style={styles.signOutButtonText}>Cerrar sesión</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.deleteAccountButton}
+          onPress={handleDeleteAccount}
+          disabled={deletingAccount}
+        >
+          <Text style={styles.deleteAccountButtonText}>
+            {deletingAccount ? 'Eliminando cuenta...' : 'Eliminar mi cuenta'}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <ImageCropperModal
@@ -528,6 +570,15 @@ const styles = StyleSheet.create({
   signOutButtonText: {
     color: colors.danger,
     fontWeight: '600',
+  },
+  deleteAccountButton: {
+    marginTop: spacing.lg,
+    alignItems: 'center',
+  },
+  deleteAccountButtonText: {
+    color: colors.inkMuted,
+    fontSize: 12,
+    textDecorationLine: 'underline',
   },
   pinChangeBox: {
     marginTop: spacing.md,

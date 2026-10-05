@@ -108,6 +108,7 @@ type AppContextValue = {
   verifyLoginCode: (code: string) => Promise<ActionResult>;
   cancelLogin: () => void;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<ActionResult>;
 
   // Pasaporte compartido
   passport: Passport | null;
@@ -692,6 +693,54 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const myPassports = useMemo(() => myPassportRows.map(toPassport), [myPassportRows]);
 
+  const deleteAccount = useCallback(async (): Promise<ActionResult> => {
+    if (!userId) return { ok: false, error: 'No hay sesión activa.' };
+
+    // Las fotos viven en Storage y no se borran solas con la cuenta: borramos
+    // la de perfil y las de los pasaportes donde estás solo (que se borran
+    // enteros). Las de pasaportes compartidos quedan para la otra persona.
+    const photoUrls: string[] = profile.photoUri ? [profile.photoUri] : [];
+    for (const p of myPassportRows) {
+      const { data: members } = await supabase
+        .from('passport_members')
+        .select('user_id')
+        .eq('passport_id', p.id);
+      if ((members ?? []).length > 1) continue;
+      const { data: stampRows } = await supabase
+        .from('stamps')
+        .select('photo_urls')
+        .eq('passport_id', p.id);
+      for (const s of (stampRows as { photo_urls: string[] | null }[] | null) ?? []) {
+        photoUrls.push(...(s.photo_urls ?? []));
+      }
+    }
+    const paths = photoUrls
+      .map((url) => url.split('/object/public/photos/')[1])
+      .filter((path): path is string => !!path)
+      .map((path) => decodeURIComponent(path));
+    if (paths.length > 0) {
+      await supabase.storage.from('photos').remove(paths);
+    }
+
+    const { data, error } = await supabase.functions.invoke('delete-account', { method: 'POST' });
+    if (error || !data?.ok) {
+      return { ok: false, error: 'No se pudo eliminar la cuenta. Probá de nuevo en un rato.' };
+    }
+
+    // La cuenta ya no existe en el servidor: limpiamos la sesión local.
+    await supabase.auth.signOut({ scope: 'local' });
+    storage.writeJson(storage.keys.lastPassportId, null);
+    setMyPassportRows([]);
+    setPassport(null);
+    setIsAdmin(false);
+    setActivities([]);
+    setStamps([]);
+    setProfile({ name: '', bio: '', photoUri: null });
+    setCompanions([]);
+    setCompanionRatings([]);
+    return { ok: true };
+  }, [userId, profile.photoUri, myPassportRows]);
+
   const retryLoadPassport = useCallback(() => {
     if (userId) loadPassport(userId);
   }, [userId, loadPassport]);
@@ -705,6 +754,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       verifyLoginCode,
       cancelLogin,
       signOut,
+      deleteAccount,
 
       passport,
       myPassports,
@@ -746,6 +796,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       verifyLoginCode,
       cancelLogin,
       signOut,
+      deleteAccount,
       passport,
       myPassports,
       passportLoading,
