@@ -1,15 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Image,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Image, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import { Activity, Stamp } from '../types';
 import { colors, radius, spacing } from '../theme';
@@ -26,12 +16,12 @@ type Props = {
 export function PassportPage({ activity, stamp, isAdmin, onSealPress, onEditPress }: Props) {
   const isStamped = !!stamp;
   const [photoIndex, setPhotoIndex] = useState(0);
-  const [photoAreaWidth, setPhotoAreaWidth] = useState(0);
+  const photoCount = stamp?.photoUris.length ?? 0;
+  // Si se borraron fotos al editar el sello, el índice guardado puede quedar fuera de rango.
+  const currentPhoto = Math.min(photoIndex, Math.max(0, photoCount - 1));
 
-  function handlePhotoScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
-    if (photoAreaWidth === 0) return;
-    const index = Math.round(event.nativeEvent.contentOffset.x / photoAreaWidth);
-    setPhotoIndex(index);
+  function changePhoto(delta: number) {
+    setPhotoIndex(Math.max(0, Math.min(photoCount - 1, currentPhoto + delta)));
   }
 
   async function handleShare() {
@@ -74,30 +64,40 @@ export function PassportPage({ activity, stamp, isAdmin, onSealPress, onEditPres
 
         {isStamped ? (
           <View style={styles.stampBlock}>
-            {stamp!.photoUris.length > 0 && (
-              <View style={styles.photoWrap} onLayout={(e) => setPhotoAreaWidth(e.nativeEvent.layout.width)}>
-                <ScrollView
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  onScroll={handlePhotoScroll}
-                  onMomentumScrollEnd={handlePhotoScroll}
-                  scrollEventThrottle={16}
-                >
-                  {stamp!.photoUris.map((uri) => (
-                    <Image key={uri} source={{ uri }} style={[styles.photo, { width: photoAreaWidth || '100%' }]} />
-                  ))}
-                </ScrollView>
-                <View style={styles.photoStamp}>
+            {photoCount > 0 && (
+              <View style={styles.photoWrap}>
+                <Image source={{ uri: stamp!.photoUris[currentPhoto] }} style={styles.photo} />
+                {/* Un swipe horizontal acá competía con el de las hojas del
+                    pasaporte (y casi siempre ganaba el de las hojas), así que
+                    las fotos se cambian tocando los costados o las flechas. */}
+                {photoCount > 1 && (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.photoTapZone, styles.photoTapZoneLeft]}
+                      onPress={() => changePhoto(-1)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Foto anterior"
+                    >
+                      {currentPhoto > 0 && <Text style={styles.photoArrow}>‹</Text>}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.photoTapZone, styles.photoTapZoneRight]}
+                      onPress={() => changePhoto(1)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Foto siguiente"
+                    >
+                      {currentPhoto < photoCount - 1 && <Text style={styles.photoArrow}>›</Text>}
+                    </TouchableOpacity>
+                    <View style={styles.photoCountBadge} pointerEvents="none">
+                      <Text style={styles.photoCountBadgeText}>
+                        {currentPhoto + 1} / {photoCount}
+                      </Text>
+                    </View>
+                  </>
+                )}
+                <View style={styles.photoStamp} pointerEvents="none">
                   <Text style={styles.photoStampText}>★</Text>
                 </View>
-                {stamp!.photoUris.length > 1 && (
-                  <View style={styles.photoCountBadge}>
-                    <Text style={styles.photoCountBadgeText}>
-                      {Math.min(photoIndex + 1, stamp!.photoUris.length)} / {stamp!.photoUris.length}
-                    </Text>
-                  </View>
-                )}
               </View>
             )}
 
@@ -238,6 +238,35 @@ const styles = StyleSheet.create({
   photoStampText: {
     color: colors.white,
     fontSize: 16,
+  },
+  photoTapZone: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: '35%',
+    justifyContent: 'center',
+  },
+  photoTapZoneLeft: {
+    left: 0,
+    alignItems: 'flex-start',
+    paddingLeft: spacing.xs,
+  },
+  photoTapZoneRight: {
+    right: 0,
+    alignItems: 'flex-end',
+    paddingRight: spacing.xs,
+  },
+  photoArrow: {
+    color: colors.white,
+    fontSize: 28,
+    fontWeight: '700',
+    backgroundColor: colors.overlay,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    textAlign: 'center',
+    lineHeight: 30,
+    overflow: 'hidden',
   },
   photoCountBadge: {
     position: 'absolute',
