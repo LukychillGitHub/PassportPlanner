@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "PassportPlanner",
+    "slug": "PassportPlanner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lukychill.passportplanner"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F8F7EF",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.lukychill.passportplanner"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PassportPlanner usa tus fotos para tu foto de perfil y para las fotos de las actividades que sellás.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#8C5A2B"
+        }
+      ],
+      "./plugins/withMavenCentralMirror.js"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3ff0c0d6-b181-4962-b3bc-26ae3b279a25"
+      }
+    }
+  }
+}
