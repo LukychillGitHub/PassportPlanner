@@ -1,4 +1,5 @@
-# Publica la versión web en GitHub Pages cada vez que se actualiza main.
+# Publica la versión web en GitHub Pages (passport.lukychill.com) cada vez que
+# se actualiza main.
 # Es la que se usa desde el iPhone ("Agregar a pantalla de inicio" en Safari).
 name: Publicar versión web
 
@@ -26,11 +27,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # GitHub Pages sirve el sitio en /<nombre-del-repo>/, no en la raíz.
-      - name: Ajustar la ruta base
-        run: |
-          jq --arg base "/${GITHUB_REPOSITORY#*/}" '.expo.experiments.baseUrl = $base' app.json > app.tmp.json
-          mv app.tmp.json app.json
       - run: npx expo export --platform web
       - uses: actions/upload-pages-artifact@v3
         with:
