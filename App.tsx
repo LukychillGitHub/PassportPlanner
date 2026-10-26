@@ -18,14 +18,16 @@ import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { storage } from './src/storage';
 import { colors, spacing } from './src/theme';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
 
 if (Platform.OS === 'android') {
   Notifications.setNotificationChannelAsync('default', {
