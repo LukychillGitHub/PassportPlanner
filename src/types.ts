@@ -34,6 +34,37 @@ export type Companion = {
   photoUri: string | null;
 };
 
+export type Top = {
+  id: string;
+  title: string;
+  emoji: string;
+  createdBy: string | null;
+  createdAt: number;
+};
+
+export type TopCategory = {
+  id: string;
+  topId: string;
+  name: string;
+  sortOrder: number;
+};
+
+export type TopPlace = {
+  id: string;
+  topId: string;
+  name: string;
+  createdBy: string | null;
+  createdAt: number;
+};
+
+// El orden de una persona en una categoría, del 1º al último.
+export type TopRanking = {
+  categoryId: string;
+  userId: string;
+  topId: string;
+  placeIds: string[];
+};
+
 export type CompanionRating = {
   raterId: string;
   rateeId: string;
