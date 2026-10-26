@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import type { Top, TopCategory, TopPlace, TopRanking } from '../../types';
+import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import type { Top, TopCategory, TopPlace, TopPlacePhoto, TopRanking } from '../../types';
 import { colors, radius, spacing } from '../../theme';
 import { computeTopRanking, initialOrder } from '../../lib/topScoring';
 import { RankingEditorModal } from './RankingEditorModal';
+import { PlaceModal } from './PlaceModal';
 
 type Member = { userId: string; name: string };
 type Result = { ok: boolean; error?: string };
@@ -13,6 +14,7 @@ type Props = {
   categories: TopCategory[];
   places: TopPlace[];
   rankings: TopRanking[];
+  photos: TopPlacePhoto[];
   members: Member[];
   myUserId: string;
   canManage: boolean;
@@ -23,6 +25,8 @@ type Props = {
   addCategory: (name: string) => Promise<Result>;
   deleteCategory: (categoryId: string) => Promise<Result>;
   saveRanking: (categoryId: string, placeIds: string[]) => Promise<Result>;
+  addPlacePhoto: (placeId: string, url: string) => Promise<Result>;
+  deletePlacePhoto: (photoId: string) => Promise<Result>;
 };
 
 const GENERAL = 'general';
@@ -33,6 +37,7 @@ export function TopDetail({
   categories,
   places,
   rankings,
+  photos,
   members,
   myUserId,
   canManage,
@@ -43,12 +48,18 @@ export function TopDetail({
   addCategory,
   deleteCategory,
   saveRanking,
+  addPlacePhoto,
+  deletePlacePhoto,
 }: Props) {
   const [view, setView] = useState<string>(GENERAL);
   const [who, setWho] = useState<string>(EVERYONE);
   const [newPlace, setNewPlace] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [openPlaceId, setOpenPlaceId] = useState<string | null>(null);
+
+  const photosOf = (placeId: string) => photos.filter((p) => p.placeId === placeId);
+  const openPlace = places.find((p) => p.id === openPlaceId) ?? null;
 
   // Si se borró la categoría que estabas mirando, volvemos al General.
   const selectedCategory = categories.find((c) => c.id === view);
@@ -116,8 +127,8 @@ export function TopDetail({
 
   function confirmDeleteCategory(category: TopCategory) {
     Alert.alert(
-      'Quitar categoría',
-      `¿Quitar "${category.name}"? Se borra el orden que cada uno armó en esa categoría.`,
+      'Quitar evaluación',
+      `¿Quitar "${category.name}"? Se borra el orden que cada uno armó en esa evaluación.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -178,20 +189,41 @@ export function TopDetail({
         ) : !anyRanked ? (
           <Text style={styles.empty}>
             {whoName
-              ? `${whoName} todavía no ordenó ${selectedCategory ? 'esta categoría' : 'ninguna categoría'}.`
-              : 'Todavía nadie armó su top. Elegí una categoría y tocá "Ordenar mi top".'}
+              ? `${whoName} todavía no ordenó ${selectedCategory ? 'esta evaluación' : 'ninguna evaluación'}.`
+              : 'Todavía nadie armó su top. Elegí una evaluación y tocá "Ordenar mi top".'}
           </Text>
         ) : (
-          ranked.map(({ place, rank }) => (
-            <View key={place.id} style={styles.rankRow}>
-              <View style={[styles.rankBadge, rank === 1 && styles.gold, rank === 2 && styles.silver, rank === 3 && styles.bronze]}>
-                <Text style={[styles.rankText, rank >= 1 && rank <= 3 && styles.rankTextPodium]}>
-                  {rank > 0 ? `${rank}º` : '–'}
-                </Text>
-              </View>
-              <Text style={[styles.rankName, rank === 0 && styles.rankNameMuted]}>{place.name}</Text>
-            </View>
-          ))
+          ranked.map(({ place, rank }) => {
+            const placePhotos = photosOf(place.id);
+            return (
+              <TouchableOpacity
+                key={place.id}
+                style={styles.rankRow}
+                onPress={() => setOpenPlaceId(place.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`Ver ${place.name}`}
+              >
+                <View style={[styles.rankBadge, rank === 1 && styles.gold, rank === 2 && styles.silver, rank === 3 && styles.bronze]}>
+                  <Text style={[styles.rankText, rank >= 1 && rank <= 3 && styles.rankTextPodium]}>
+                    {rank > 0 ? `${rank}º` : '–'}
+                  </Text>
+                </View>
+                <Text style={[styles.rankName, rank === 0 && styles.rankNameMuted]}>{place.name}</Text>
+                {placePhotos.length > 0 ? (
+                  <View>
+                    <Image source={{ uri: placePhotos[0].url }} style={styles.thumb} />
+                    {placePhotos.length > 1 && (
+                      <View style={styles.thumbCount}>
+                        <Text style={styles.thumbCountText}>{placePhotos.length}</Text>
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <Text style={styles.rowArrow}>›</Text>
+                )}
+              </TouchableOpacity>
+            );
+          })
         )}
       </View>
 
@@ -204,7 +236,7 @@ export function TopDetail({
         </TouchableOpacity>
       ) : (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tus categorías</Text>
+          <Text style={styles.sectionTitle}>Tu top en cada evaluación</Text>
           {categories.map((c) => {
             const done = !!myRankingFor(c.id)?.placeIds.length;
             return (
@@ -226,7 +258,7 @@ export function TopDetail({
             style={styles.input}
             value={newPlace}
             onChangeText={setNewPlace}
-            placeholder="Ej: Kiddo"
+            placeholder="Nombre del lugar"
             placeholderTextColor={colors.inkMuted}
             onSubmitEditing={handleAddPlace}
             returnKeyType="done"
@@ -237,7 +269,12 @@ export function TopDetail({
         </View>
         {places.map((p) => (
           <View key={p.id} style={styles.manageRow}>
-            <Text style={styles.manageName}>{p.name}</Text>
+            <TouchableOpacity style={styles.manageNameButton} onPress={() => setOpenPlaceId(p.id)}>
+              <Text style={styles.manageName}>{p.name}</Text>
+              <Text style={styles.managePhotos}>
+                📷 {photosOf(p.id).length > 0 ? photosOf(p.id).length : 'Sumar fotos'}
+              </Text>
+            </TouchableOpacity>
             {(canManage || p.createdBy === myUserId) && (
               <TouchableOpacity onPress={() => confirmDeletePlace(p)} hitSlop={8}>
                 <Text style={styles.removeText}>Quitar</Text>
@@ -249,7 +286,7 @@ export function TopDetail({
 
       {canManage && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Categorías</Text>
+          <Text style={styles.sectionTitle}>Qué se evalúa</Text>
           {categories.map((c) => (
             <View key={c.id} style={styles.manageRow}>
               <Text style={styles.manageName}>{c.name}</Text>
@@ -265,7 +302,7 @@ export function TopDetail({
               style={styles.input}
               value={newCategory}
               onChangeText={setNewCategory}
-              placeholder="Ej: Atención"
+              placeholder="Algo más a evaluar"
               placeholderTextColor={colors.inkMuted}
               onSubmitEditing={handleAddCategory}
               returnKeyType="done"
@@ -279,6 +316,16 @@ export function TopDetail({
           </TouchableOpacity>
         </View>
       )}
+
+      <PlaceModal
+        place={openPlace}
+        photos={openPlace ? photosOf(openPlace.id) : []}
+        rank={ranked.find((r) => r.place.id === openPlaceId)?.rank ?? 0}
+        canRemovePhoto={(photo) => canManage || photo.createdBy === myUserId}
+        onClose={() => setOpenPlaceId(null)}
+        onAddPhoto={(url) => (openPlace ? addPlacePhoto(openPlace.id, url) : Promise.resolve({ ok: false }))}
+        onRemovePhoto={deletePlacePhoto}
+      />
 
       <RankingEditorModal
         visible={!!editingCategory}
@@ -363,6 +410,23 @@ const styles = StyleSheet.create({
   rankTextPodium: { color: colors.white },
   rankName: { flex: 1, fontSize: 16, fontWeight: '700', color: colors.ink },
   rankNameMuted: { color: colors.inkMuted, fontWeight: '500' },
+  thumb: { width: 48, height: 36, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.cardBorder },
+  thumbCount: {
+    position: 'absolute',
+    right: -6,
+    bottom: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbCountText: { color: colors.white, fontSize: 10, fontWeight: '800' },
+  rowArrow: { color: colors.primary, fontSize: 22, fontWeight: '700' },
+  manageNameButton: { flex: 1, paddingVertical: spacing.xs },
+  managePhotos: { fontSize: 12, color: colors.primary, marginTop: 2 },
   primaryButton: {
     backgroundColor: colors.primary,
     paddingVertical: spacing.md,

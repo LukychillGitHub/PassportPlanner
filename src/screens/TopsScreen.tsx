@@ -8,11 +8,7 @@ import { colors, radius, spacing } from '../theme';
 import { CreateTopModal, TopDraft } from '../components/tops/CreateTopModal';
 import { TopDetail } from '../components/tops/TopDetail';
 
-const BURGER_TEMPLATE: TopDraft = {
-  title: 'Hamburgueserías',
-  emoji: '🍔',
-  categories: ['Hamburguesa', 'Papas fritas', 'Lugar'],
-};
+const EMPTY_DRAFT: TopDraft = { title: '', emoji: '🏆', categories: [] };
 
 export function TopsScreen() {
   const { passport, session, companions, isLeader } = useApp();
@@ -50,6 +46,9 @@ export function TopsScreen() {
           categories={data.categories.filter((c) => c.topId === selectedTop.id)}
           places={data.places.filter((p) => p.topId === selectedTop.id)}
           rankings={data.rankings.filter((r) => r.topId === selectedTop.id)}
+          photos={data.photos.filter((ph) =>
+            data.places.some((p) => p.id === ph.placeId && p.topId === selectedTop.id)
+          )}
           members={members}
           myUserId={myUserId}
           canManage={canManage}
@@ -73,6 +72,8 @@ export function TopsScreen() {
           addCategory={(name) => data.addCategory(selectedTop.id, name)}
           deleteCategory={data.deleteCategory}
           saveRanking={(categoryId, placeIds) => data.saveRanking(selectedTop.id, categoryId, placeIds)}
+          addPlacePhoto={(placeId, url) => data.addPlacePhoto(selectedTop.id, placeId, url)}
+          deletePlacePhoto={data.deletePlacePhoto}
         />
       </SafeAreaView>
     );
@@ -86,7 +87,7 @@ export function TopsScreen() {
             <Text style={styles.headerTitle}>Tops</Text>
             <Text style={styles.headerSubtitle}>Armen juntos el ranking de lo que vayan probando</Text>
           </View>
-          <TouchableOpacity style={styles.addButton} onPress={() => setCreateDraft({ title: '', emoji: '🏆', categories: [] })}>
+          <TouchableOpacity style={styles.addButton} onPress={() => setCreateDraft(EMPTY_DRAFT)}>
             <Text style={styles.addButtonText}>+ Top</Text>
           </TouchableOpacity>
         </View>
@@ -100,8 +101,8 @@ export function TopsScreen() {
             <Text style={styles.emptyText}>
               Creen un top de lo que quieran, elijan qué evaluar y cada uno arma su propio ranking.
             </Text>
-            <TouchableOpacity style={styles.templateButton} onPress={() => setCreateDraft(BURGER_TEMPLATE)}>
-              <Text style={styles.templateButtonText}>🍔 Crear "Hamburgueserías"</Text>
+            <TouchableOpacity style={styles.templateButton} onPress={() => setCreateDraft(EMPTY_DRAFT)}>
+              <Text style={styles.templateButtonText}>Crear el primer top</Text>
             </TouchableOpacity>
           </View>
         ) : (

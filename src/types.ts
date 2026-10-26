@@ -57,6 +57,14 @@ export type TopPlace = {
   createdAt: number;
 };
 
+export type TopPlacePhoto = {
+  id: string;
+  placeId: string;
+  url: string;
+  createdBy: string | null;
+  createdAt: number;
+};
+
 // El orden de una persona en una categoría, del 1º al último.
 export type TopRanking = {
   categoryId: string;

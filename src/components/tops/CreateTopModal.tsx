@@ -51,15 +51,17 @@ export function CreateTopModal({ visible, initial, onClose, onCreate }: Props) {
     setNewCategory('');
   }
 
+  const pending = newCategory.trim();
+  const finalCategories = pending && !categories.includes(pending) ? [...categories, pending] : categories;
+  const canCreate = !!title.trim() && finalCategories.length > 0;
+
   async function handleCreate() {
-    const pending = newCategory.trim();
-    const finalCategories = pending && !categories.includes(pending) ? [...categories, pending] : categories;
     if (!title.trim()) {
-      Alert.alert('Falta el nombre', 'Ponele un nombre al top, por ejemplo "Hamburgueserías".');
+      Alert.alert('Falta la categoría del top', 'Escribí de qué es el top, por ejemplo "Hamburgueserías".');
       return;
     }
     if (finalCategories.length === 0) {
-      Alert.alert('Falta una categoría', 'Agregá al menos una cosa para evaluar, por ejemplo "Hamburguesa".');
+      Alert.alert('Falta qué se va a evaluar', 'Sumá al menos una cosa para evaluar, por ejemplo "Papas fritas".');
       return;
     }
     setBusy(true);
@@ -75,12 +77,13 @@ export function CreateTopModal({ visible, initial, onClose, onCreate }: Props) {
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>Nuevo top</Text>
 
-            <Text style={styles.label}>Nombre</Text>
+            <Text style={styles.label}>Categoría del top</Text>
+            <Text style={styles.help}>De qué es el top. Por ejemplo: Hamburgueserías, Cafeterías, Series.</Text>
             <TextInput
               style={styles.input}
               value={title}
               onChangeText={setTitle}
-              placeholder="Ej: Hamburgueserías"
+              placeholder="Escribí la categoría"
               placeholderTextColor={colors.inkMuted}
             />
 
@@ -99,8 +102,11 @@ export function CreateTopModal({ visible, initial, onClose, onCreate }: Props) {
               ))}
             </View>
 
-            <Text style={styles.label}>Qué van a evaluar</Text>
-            <Text style={styles.help}>Cada uno arma su propio top en cada categoría.</Text>
+            <Text style={styles.label}>Qué se va a evaluar</Text>
+            <Text style={styles.help}>
+              Sumá todas las que quieras, de a una. Por ejemplo: Hamburguesa, Papas fritas, Lugar. Cada uno arma su
+              propio top en cada una.
+            </Text>
             <View style={styles.chipsRow}>
               {categories.map((c) => (
                 <View key={c} style={styles.chip}>
@@ -121,7 +127,7 @@ export function CreateTopModal({ visible, initial, onClose, onCreate }: Props) {
                 style={[styles.input, styles.addInput]}
                 value={newCategory}
                 onChangeText={setNewCategory}
-                placeholder="Ej: Papas fritas"
+                placeholder="Escribí algo a evaluar"
                 placeholderTextColor={colors.inkMuted}
                 onSubmitEditing={addCategory}
                 returnKeyType="done"
@@ -136,9 +142,9 @@ export function CreateTopModal({ visible, initial, onClose, onCreate }: Props) {
                 <Text style={styles.secondaryButtonText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.primaryButton, busy && styles.disabled]}
+                style={[styles.primaryButton, (busy || !canCreate) && styles.disabled]}
                 onPress={handleCreate}
-                disabled={busy}
+                disabled={busy || !canCreate}
               >
                 <Text style={styles.primaryButtonText}>{busy ? 'Creando...' : 'Crear top'}</Text>
               </TouchableOpacity>
@@ -241,5 +247,5 @@ const styles = StyleSheet.create({
     borderColor: colors.cardBorder,
   },
   secondaryButtonText: { color: colors.ink, fontWeight: '600' },
-  disabled: { opacity: 0.6 },
+  disabled: { opacity: 0.4 },
 });
