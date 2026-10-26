@@ -1,7 +1,0 @@
-# Versión web (para usar desde el iPhone agregándola a la pantalla de inicio).
-[build]
-  command = "npx expo export --platform web"
-  publish = "dist"
-
-[build.environment]
-  NODE_VERSION = "22"
