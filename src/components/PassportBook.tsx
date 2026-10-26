@@ -2,9 +2,11 @@ import React, {
   forwardRef,
   useCallback,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from 'react';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
   FlatList,
   LayoutChangeEvent,
@@ -42,6 +44,9 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
   const [currentIndex, setCurrentIndex] = useState(0);
   const listRef = useRef<FlatList<Activity>>(null);
   const pendingIndexRef = useRef<number | null>(null);
+  // El gesto del carrusel de hojas, registrado para que el deslizamiento de las
+  // fotos (dentro de cada hoja) pueda tener prioridad sobre él.
+  const pagesGesture = useMemo(() => Gesture.Native(), []);
 
   function handleLayout(event: LayoutChangeEvent) {
     setFrameWidth(event.nativeEvent.layout.width);
@@ -105,10 +110,11 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
           isAdmin={isAdmin}
           onSealPress={() => onSealPress(activity)}
           onEditPress={() => onEditPress(activity)}
+          pagesGesture={pagesGesture}
         />
       </View>
     ),
-    [frameWidth, frameHeight, getStamp, isAdmin, onSealPress, onEditPress]
+    [frameWidth, frameHeight, getStamp, isAdmin, onSealPress, onEditPress, pagesGesture]
   );
 
   const getItemLayout = useCallback(
@@ -132,6 +138,7 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
             página siguiente. */}
         <View style={styles.listArea} onLayout={handleLayout}>
           {frameWidth > 0 && frameHeight > 0 && activities.length > 0 && (
+            <GestureDetector gesture={pagesGesture}>
             <FlatList
               ref={listRef}
               data={activities}
@@ -148,6 +155,7 @@ export const PassportBook = forwardRef<PassportBookHandle, Props>(function Passp
               onScrollEndDrag={handleScrollUpdate}
               style={styles.list}
             />
+            </GestureDetector>
           )}
         </View>
 
