@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Image, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { Animated, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Sharing from 'expo-sharing';
 import { Activity, Stamp } from '../types';
 import { colors, radius, spacing } from '../theme';
@@ -11,18 +12,62 @@ type Props = {
   isAdmin: boolean;
   onSealPress: () => void;
   onEditPress: () => void;
+  // Gesto del carrusel de hojas: mientras se desliza sobre la foto, el
+  // carrusel espera y no pasa de hoja.
+  pagesGesture?: ReturnType<typeof Gesture.Native>;
 };
 
-export function PassportPage({ activity, stamp, isAdmin, onSealPress, onEditPress }: Props) {
+const SWIPE_DISTANCE = 50;
+const SWIPE_VELOCITY = 500;
+
+export function PassportPage({ activity, stamp, isAdmin, onSealPress, onEditPress, pagesGesture }: Props) {
   const isStamped = !!stamp;
   const [photoIndex, setPhotoIndex] = useState(0);
   const photoCount = stamp?.photoUris.length ?? 0;
   // Si se borraron fotos al editar el sello, el índice guardado puede quedar fuera de rango.
   const currentPhoto = Math.min(photoIndex, Math.max(0, photoCount - 1));
+  const dragX = useRef(new Animated.Value(0)).current;
 
   function changePhoto(delta: number) {
     setPhotoIndex(Math.max(0, Math.min(photoCount - 1, currentPhoto + delta)));
   }
+
+  // Deslizar sobre la foto cambia de foto; deslizar en el resto de la hoja
+  // cambia de hoja. Los callbacks corren en el hilo de JS (runOnJS), sin
+  // worklets, porque la app ya no usa Reanimated.
+  const photoSwipe = useMemo(() => {
+    const canGoBack = currentPhoto > 0;
+    const canGoForward = currentPhoto < photoCount - 1;
+    let gesture = Gesture.Pan()
+      .runOnJS(true)
+      .enabled(photoCount > 1)
+      .activeOffsetX([-12, 12])
+      .failOffsetY([-12, 12])
+      .onUpdate((e) => {
+        // En la primera/última foto el arrastre se frena, para que se note el tope.
+        const atEdge = (e.translationX > 0 && !canGoBack) || (e.translationX < 0 && !canGoForward);
+        dragX.setValue(atEdge ? e.translationX * 0.25 : e.translationX);
+      })
+      .onEnd((e) => {
+        const goForward = e.translationX < -SWIPE_DISTANCE || e.velocityX < -SWIPE_VELOCITY;
+        const goBack = e.translationX > SWIPE_DISTANCE || e.velocityX > SWIPE_VELOCITY;
+        if (goForward && canGoForward) {
+          dragX.setValue(0);
+          setPhotoIndex(currentPhoto + 1);
+        } else if (goBack && canGoBack) {
+          dragX.setValue(0);
+          setPhotoIndex(currentPhoto - 1);
+        } else {
+          Animated.spring(dragX, { toValue: 0, useNativeDriver: true }).start();
+        }
+      })
+      .onFinalize(() => {
+        // Si el gesto se cancela a mitad de camino, la foto vuelve a su lugar.
+        Animated.spring(dragX, { toValue: 0, useNativeDriver: true }).start();
+      });
+    if (pagesGesture) gesture = gesture.blocksExternalGesture(pagesGesture);
+    return gesture;
+  }, [currentPhoto, photoCount, pagesGesture, dragX]);
 
   async function handleShare() {
     if (!stamp) return;
@@ -65,11 +110,14 @@ export function PassportPage({ activity, stamp, isAdmin, onSealPress, onEditPres
         {isStamped ? (
           <View style={styles.stampBlock}>
             {photoCount > 0 && (
+              <GestureDetector gesture={photoSwipe}>
               <View style={styles.photoWrap}>
-                <Image source={{ uri: stamp!.photoUris[currentPhoto] }} style={styles.photo} />
-                {/* Un swipe horizontal acá competía con el de las hojas del
-                    pasaporte (y casi siempre ganaba el de las hojas), así que
-                    las fotos se cambian tocando los costados o las flechas. */}
+                <View style={styles.photoClip}>
+                  <Animated.Image
+                    source={{ uri: stamp!.photoUris[currentPhoto] }}
+                    style={[styles.photo, { transform: [{ translateX: dragX }] }]}
+                  />
+                </View>
                 {photoCount > 1 && (
                   <>
                     <TouchableOpacity
@@ -99,6 +147,7 @@ export function PassportPage({ activity, stamp, isAdmin, onSealPress, onEditPres
                   <Text style={styles.photoStampText}>★</Text>
                 </View>
               </View>
+              </GestureDetector>
             )}
 
             <View style={styles.stampBadge}>
@@ -211,15 +260,19 @@ const styles = StyleSheet.create({
   photoWrap: {
     marginBottom: spacing.md,
   },
+  // El marco queda quieto y la foto se desliza adentro al arrastrarla.
+  photoClip: {
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: colors.cardBorder,
+    overflow: 'hidden',
+  },
   photo: {
     width: '100%',
     // Coincide con el aspect={4/3} del recorte en StampModal, para que el
     // encuadre que el usuario eligió al recortar sea exactamente el que se
     // ve en el sello (sin un recorte extra por un aspect ratio distinto).
     aspectRatio: 4 / 3,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: colors.cardBorder,
   },
   photoStamp: {
     position: 'absolute',

@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { Platform } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
@@ -225,6 +226,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // --- Notificaciones push: avisarle al otro miembro del pasaporte cuando pasa algo ---
   const registerPushToken = useCallback(async (uid: string) => {
+    // La versión web no recibe notificaciones push.
+    if (Platform.OS === 'web') return;
     try {
       const permission = await Notifications.getPermissionsAsync();
       let status = permission.status;

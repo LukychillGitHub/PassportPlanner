@@ -275,20 +275,22 @@ export function AccountScreen() {
           </View>
         )}
 
-        <View style={styles.reminderSection}>
-          <View style={styles.reminderRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.adminTitle}>Recordatorio semanal</Text>
-              <Text style={styles.reminderHint}>Te avisamos los domingos para que elijas tu próxima actividad.</Text>
+        {Platform.OS !== 'web' && (
+          <View style={styles.reminderSection}>
+            <View style={styles.reminderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.adminTitle}>Recordatorio semanal</Text>
+                <Text style={styles.reminderHint}>Te avisamos los domingos para que elijas tu próxima actividad.</Text>
+              </View>
+              <Switch
+                value={reminderEnabled}
+                onValueChange={toggleReminder}
+                disabled={reminderBusy}
+                accessibilityLabel="Activar recordatorio semanal"
+              />
             </View>
-            <Switch
-              value={reminderEnabled}
-              onValueChange={toggleReminder}
-              disabled={reminderBusy}
-              accessibilityLabel="Activar recordatorio semanal"
-            />
           </View>
-        </View>
+        )}
 
         <View style={styles.adminSection}>
           <Text style={styles.adminTitle}>Modo administrador</Text>
