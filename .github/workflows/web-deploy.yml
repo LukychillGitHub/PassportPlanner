@@ -1,4 +1,4 @@
-# Publica la versión web en GitHub Pages (passport.lukychill.com) cada vez que
+# Publica la versión web en GitHub Pages cada vez que
 # se actualiza main.
 # Es la que se usa desde el iPhone ("Agregar a pantalla de inicio" en Safari).
 name: Publicar versión web
@@ -27,6 +27,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Sin dominio propio, Pages sirve el sitio en /PassportPlanner/; con
+      # passport.lukychill.com configurado, en la raíz. configure-pages lo detecta.
+      - id: pages
+        uses: actions/configure-pages@v5
+      - name: Ajustar la ruta base
+        run: |
+          jq --arg base "${{ steps.pages.outputs.base_path }}" '.expo.experiments.baseUrl = $base' app.json > app.tmp.json
+          mv app.tmp.json app.json
       - run: npx expo export --platform web
       - uses: actions/upload-pages-artifact@v3
         with:
