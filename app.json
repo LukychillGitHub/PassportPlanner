@@ -38,7 +38,9 @@
           "color": "#8C5A2B"
         }
       ],
-      "./plugins/withMavenCentralMirror.js"
+      "./plugins/withMavenCentralMirror.js",
+      "expo-sharing",
+      "expo-status-bar"
     ],
     "extra": {
       "eas": {

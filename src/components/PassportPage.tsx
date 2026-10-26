@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Animated, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Gesture, GestureDetector, NativeGesture } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Sharing from 'expo-sharing';
 import { Activity, Stamp } from '../types';
 import { colors, radius, spacing } from '../theme';
@@ -14,7 +14,7 @@ type Props = {
   onEditPress: () => void;
   // Gesto del carrusel de hojas: mientras se desliza sobre la foto, el
   // carrusel espera y no pasa de hoja.
-  pagesGesture?: NativeGesture;
+  pagesGesture?: ReturnType<typeof Gesture.Native>;
 };
 
 const SWIPE_DISTANCE = 50;

@@ -5,6 +5,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
+  ScrollViewInstance,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -26,7 +27,7 @@ type Props = {
 export function PhotoGallery({ photos, onRemove, canRemove }: Props) {
   const [width, setWidth] = useState(0);
   const [index, setIndex] = useState(0);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const current = Math.min(index, Math.max(0, photos.length - 1));
 
   function handleLayout(e: LayoutChangeEvent) {
